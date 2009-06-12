@@ -88,8 +88,8 @@ gegl_buffer_pixel_set (GeglBuffer *buffer,
         gint      tiledx = buffer_x + buffer->shift_x + x;
 
         GeglTile *tile = gegl_tile_source_get_tile ((GeglTileSource *) (buffer),
-                                                gegl_tile_indice (tiledx, tile_width),
-                                                gegl_tile_indice (tiledy, tile_height),
+                                                gegl_tile_index (tiledx, tile_width),
+                                                gegl_tile_index (tiledy, tile_height),
                                                 0);
 
         if (tile)
@@ -170,8 +170,8 @@ gegl_buffer_set_pixel (GeglBuffer *buffer,
       }
     else
       {
-        gint      indice_x = gegl_tile_indice (tiledx, tile_width);
-        gint      indice_y = gegl_tile_indice (tiledy, tile_height);
+        gint      indice_x = gegl_tile_index (tiledx, tile_width);
+        gint      indice_y = gegl_tile_index (tiledy, tile_height);
         GeglTile *tile     = NULL;
 
         if (buffer->hot_tile &&
@@ -248,8 +248,8 @@ gegl_buffer_get_pixel (GeglBuffer *buffer,
       }
     else
       {
-        gint      indice_x = gegl_tile_indice (tiledx, tile_width);
-        gint      indice_y = gegl_tile_indice (tiledy, tile_height);
+        gint      indice_x = gegl_tile_index (tiledx, tile_width);
+        gint      indice_y = gegl_tile_index (tiledy, tile_height);
         GeglTile *tile     = NULL;
 
         if (buffer->hot_tile &&
@@ -458,8 +458,8 @@ gegl_buffer_iterate (GeglBuffer          *buffer,
               {
                 guchar   *tile_base, *tp;
                 GeglTile *tile = gegl_tile_source_get_tile ((GeglTileSource *) (buffer),
-                                                           gegl_tile_indice (tiledx, tile_width),
-                                                           gegl_tile_indice (tiledy, tile_height),
+                                                           gegl_tile_index (tiledx, tile_width),
+                                                           gegl_tile_index (tiledy, tile_height),
                                                            level);
 
                 gint lskip = (buffer_abyss_x) - (buffer_x + bufx);

@@ -182,8 +182,8 @@ gulp:
            i->subrect.height = tile_height - offsety;
 
          i->tile = gegl_tile_source_get_tile ((GeglTileSource *) (buffer),
-                                               gegl_tile_indice (tiledx, tile_width),
-                                               gegl_tile_indice (tiledy, tile_height),
+                                               gegl_tile_index (tiledx, tile_width),
+                                               gegl_tile_index (tiledy, tile_height),
                                                0);
          if (i->write && tile_width==i->subrect.width)
            {

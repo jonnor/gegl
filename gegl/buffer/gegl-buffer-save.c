@@ -295,8 +295,8 @@ gegl_buffer_save (GeglBuffer          *buffer,
                   gint tiledx  = buffer->extent.x + bufx;
                   gint offsetx = gegl_tile_offset (tiledx, tile_width);
 
-                  gint tx = gegl_tile_indice (tiledx / factor, tile_width);
-                  gint ty = gegl_tile_indice (tiledy / factor, tile_height);
+                  gint tx = gegl_tile_index (tiledx / factor, tile_width);
+                  gint ty = gegl_tile_index (tiledy / factor, tile_height);
 
                   if (gegl_tile_source_exist (GEGL_TILE_SOURCE (buffer), tx, ty, z))
                     {

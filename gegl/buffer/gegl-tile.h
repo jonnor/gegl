@@ -112,7 +112,7 @@ GeglTile    *gegl_tile_dup        (GeglTile *tile);
 /* helper function to compute tile indices and offsets for coordinates
  * based on a tile stride (tile_width or tile_height)
  */
-#define gegl_tile_indice(coordinate,stride) \
+#define gegl_tile_index(coordinate,stride) \
   (((coordinate) >= 0)?\
       (coordinate) / (stride):\
       ((((coordinate) + 1) /(stride)) - 1))

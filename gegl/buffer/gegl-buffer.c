@@ -1133,7 +1133,7 @@ gegl_buffer_void (GeglBuffer *buffer)
             gint tiledy  = buffer->extent.y + buffer->shift_y + bufy;
             gint offsety = gegl_tile_offset (tiledy, tile_height);
             gint bufx    = 0;
-            gint ty = gegl_tile_indice (tiledy / factor, tile_height);
+            gint ty = gegl_tile_index (tiledy / factor, tile_height);
 
             if (z != 0 ||  /* FIXME: handle z==0 correctly */
                 ty >= buffer->min_y)
@@ -1142,7 +1142,7 @@ gegl_buffer_void (GeglBuffer *buffer)
                   gint tiledx  = buffer->extent.x + buffer->shift_x + bufx;
                   gint offsetx = gegl_tile_offset (tiledx, tile_width);
 
-                  gint tx = gegl_tile_indice (tiledx / factor, tile_width);
+                  gint tx = gegl_tile_index (tiledx / factor, tile_width);
 
                   if (z != 0 ||
                       tx >= buffer->min_x)
