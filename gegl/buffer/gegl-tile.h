@@ -77,7 +77,10 @@ struct _GeglTileClass
 GType        gegl_tile_get_type   (void) G_GNUC_CONST;
 
 GeglTile   * gegl_tile_new        (gint     size);
+
 void       * gegl_tile_get_format (GeglTile *tile);
+gint         gegl_tile_get_width  (GeglTile *tile);
+gint         gegl_tile_get_height (GeglTile *tile);
 
 
 /* lock a tile for writing, this would allow writing to buffers

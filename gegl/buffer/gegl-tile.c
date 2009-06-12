@@ -236,6 +236,18 @@ gegl_tile_get_format (GeglTile *tile)
   return (void *) tile->tile_storage->format;
 }
 
+gint
+gegl_tile_get_width (GeglTile *tile)
+{
+  return tile->tile_storage->tile_width;
+}
+
+gint
+gegl_tile_get_height (GeglTile *tile)
+{
+  return tile->tile_storage->tile_height;
+}
+
 static gpointer
 gegl_memdup (gpointer src, gsize size)
 {
