@@ -230,6 +230,12 @@ gegl_tile_new (gint size)
   return tile;
 }
 
+void *
+gegl_tile_get_format (GeglTile *tile)
+{
+  return (void *) tile->tile_storage->format;
+}
+
 static gpointer
 gegl_memdup (gpointer src, gsize size)
 {
