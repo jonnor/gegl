@@ -22,6 +22,7 @@
 #include <glib-object.h>
 
 #include "gegl-buffer-types.h"
+#include "gegl-gpu-types.h"
 
 #define GEGL_TYPE_TILE            (gegl_tile_get_type ())
 #define GEGL_TILE(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), GEGL_TYPE_TILE, GeglTile))
@@ -40,6 +41,7 @@ struct _GeglTile
 
   guchar          *data;        /* actual pixel data for tile, a linear buffer*/
   gint             size;        /* The size of the linear buffer */
+  GeglGpuTexture  *gpu_data;    /* pixel data for tile, stored in the GPU */
 
   GeglTileStorage *tile_storage; /* the buffer from which this tile was
                                   * retrieved needed for the tile to be able to
@@ -64,8 +66,10 @@ struct _GeglTile
   GeglTile        *next_shared;
   GeglTile        *prev_shared;
 
-  void (*destroy_notify) (gpointer pixels,
-                          gpointer data);
+  void (*destroy_notify) (gpointer        pixels,
+                          GeglGpuTexture *gpu_data,
+                          gpointer        data);
+
   gpointer destroy_notify_data;
 };
 
@@ -87,9 +91,12 @@ gint         gegl_tile_get_height (GeglTile *tile);
  * later gotten with get_data()
  */
 void         gegl_tile_lock       (GeglTile *tile);
-/* get a pointer to the linear buffer of the tile.
- */
-#define gegl_tile_get_data(tile)  ((guchar*)((tile)->data))
+
+/* get a pointer to the linear buffer of the tile */
+void           *gegl_tile_get_data     (GeglTile *tile);
+
+/* get a pointer to the GPU data of the tile */
+GeglGpuTexture *gegl_tile_get_gpu_data (GeglTile *tile);
 
 /* unlock the tile notifying the tile that we're done manipulating
  * the data.

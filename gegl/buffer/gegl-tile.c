@@ -35,6 +35,8 @@
 #include "gegl-tile-source.h"
 #include "gegl-tile-storage.h"
 
+#include "gegl-gpu-types.h"
+#include "gegl-gpu-texture.h"
 
 G_DEFINE_TYPE (GeglTile, gegl_tile, G_TYPE_OBJECT)
 enum
@@ -110,10 +112,15 @@ set_property (GObject      *gobject,
 
 #include "gegl-utils.h"
 
-static void default_free (gpointer data,
-                          gpointer userdata)
+static void default_free (gpointer        data,
+                          GeglGpuTexture *gpu_data,
+                          gpointer        userdata)
 {
-  gegl_free (data);
+  if (data != NULL)
+    gegl_free (data);
+
+  if (gpu_data != NULL)
+    gegl_gpu_texture_free (gpu_data);
 }
 
 static void
@@ -124,13 +131,17 @@ dispose (GObject *object)
   if (!gegl_tile_is_stored (tile))
     gegl_tile_store (tile);
 
-  if (tile->data)
+  if (tile->data != NULL || tile->gpu_data != NULL)
     {
       if (tile->next_shared == tile)
-        { /* no clones */
+        {
+          /* no clones */
           if (tile->destroy_notify)
-            tile->destroy_notify (tile->data, tile->destroy_notify_data);
-          tile->data = NULL;
+            tile->destroy_notify (tile->data, tile->gpu_data,
+                                  tile->destroy_notify_data);
+
+          tile->data     = NULL;
+          tile->gpu_data = NULL;
         }
       else
         {
@@ -142,12 +153,12 @@ dispose (GObject *object)
 #if ENABLE_MP
   if (tile->mutex)
     {
-      g_mutex_free (tile->mutex);
+      g_static_mutex_free (tile->mutex);
       tile->mutex = NULL;
     }
 #endif
 
-  (*G_OBJECT_CLASS (parent_class)->dispose)(object);
+  (*G_OBJECT_CLASS (parent_class)->dispose) (object);
 }
 
 static void
@@ -184,18 +195,23 @@ gegl_tile_class_init (GeglTileClass *class)
 static void
 gegl_tile_init (GeglTile *tile)
 {
-  tile->tile_storage    = NULL;
-  tile->stored_rev = 0;
+  tile->data     = NULL;
+  tile->gpu_data = NULL;
+
+  tile->tile_storage = NULL;
+
   tile->rev        = 0;
+  tile->stored_rev = 0;
+
   tile->lock       = 0;
-  tile->data       = NULL;
 
   tile->next_shared = tile;
   tile->prev_shared = tile;
 
 #if ENABLE_MP
-  tile->mutex = g_mutex_new ();
+  tile->lock = g_mutex_new ();
 #endif
+
   tile->destroy_notify = default_free;
 }
 
@@ -204,11 +220,14 @@ gegl_tile_dup (GeglTile *src)
 {
   GeglTile *tile = g_object_new (GEGL_TYPE_TILE, NULL);
 
+  tile->data     = src->data;
+  tile->size     = src->size;
+  tile->gpu_data = src->gpu_data;
+
+  tile->tile_storage = src->tile_storage;
+
   tile->rev        = 1;
   tile->stored_rev = 1;
-  tile->tile_storage    = src->tile_storage;
-  tile->data       = src->data;
-  tile->size       = src->size;
 
   tile->next_shared              = src->next_shared;
   src->next_shared               = tile;
@@ -266,6 +285,7 @@ gegl_tile_unclone (GeglTile *tile)
        * create a local copy
        */
       tile->data                     = gegl_memdup (tile->data, tile->size);
+      tile->gpu_data                 = gegl_gpu_texture_dup (tile->gpu_data);
       tile->prev_shared->next_shared = tile->next_shared;
       tile->next_shared->prev_shared = tile->prev_shared;
       tile->prev_shared              = tile;
