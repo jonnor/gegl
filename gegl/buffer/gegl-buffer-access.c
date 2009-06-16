@@ -964,7 +964,7 @@ gegl_buffer_gpu_set (GeglBuffer           *buffer,
     }
   else
     {
-      gegl_buffer_gpu_iterate (buffer, rect, src, TRUE, 0);
+      gegl_buffer_gpu_iterate (buffer, rect, (GeglGpuTexture *) src, TRUE, 0);
     }
 
   if (gegl_buffer_is_shared (buffer))

@@ -74,10 +74,10 @@ gegl_gpu_texture_free (GeglGpuTexture *texture)
 }
 
 void
-gegl_gpu_texture_get (GeglGpuTexture      *texture,
-                      const GeglRectangle *roi,
-                      gpointer             dest,
-                      const Babl          *format)
+gegl_gpu_texture_get (const GeglGpuTexture *texture,
+                      const GeglRectangle  *roi,
+                      gpointer              dest,
+                      const Babl           *format)
 {
   gpointer buf;
   gint     pixel_count = (roi != NULL)
@@ -85,7 +85,7 @@ gegl_gpu_texture_get (GeglGpuTexture      *texture,
                          : gegl_gpu_texture_get_pixel_count (texture);
 
   if (texture->handle == 0)
-    allocate_texture_data (texture);
+    allocate_texture_data ((GeglGpuTexture *) texture);
 
   if (format != NULL && format != texture->format)
     {
@@ -205,14 +205,14 @@ gegl_gpu_texture_clear (GeglGpuTexture      *texture,
 }
 
 void
-gegl_gpu_texture_copy (GeglGpuTexture      *src,
-                       const GeglRectangle *src_rect,
-                       GeglGpuTexture      *dest,
-                       gint                 dest_x,
-                       gint                 dest_y)
+gegl_gpu_texture_copy (const GeglGpuTexture *src,
+                       const GeglRectangle  *src_rect,
+                       GeglGpuTexture       *dest,
+                       gint                  dest_x,
+                       gint                  dest_y)
 {
   if (src->handle == 0)
-    allocate_texture_data (src);
+    allocate_texture_data ((GeglGpuTexture *) src);
 
   if (dest->handle == 0)
     allocate_texture_data (dest);
@@ -238,7 +238,7 @@ gegl_gpu_texture_copy (GeglGpuTexture      *src,
 }
 
 GeglGpuTexture *
-gegl_gpu_texture_dup (GeglGpuTexture *texture)
+gegl_gpu_texture_dup (const GeglGpuTexture *texture)
 {
   GeglGpuTexture *result = gegl_gpu_texture_new (texture->width,
                                                  texture->height,

@@ -28,26 +28,26 @@
 G_BEGIN_DECLS
 
 GType                gegl_gpu_texture_get_type (void) G_GNUC_CONST;
-GeglGpuTexture      *gegl_gpu_texture_new      (gint                 width,
-                                                gint                 height,
-                                                const Babl          *format);
-void                 gegl_gpu_texture_free     (GeglGpuTexture      *texture);
-void                 gegl_gpu_texture_get      (GeglGpuTexture      *texture,
-                                                const GeglRectangle *roi,
-                                                gpointer             dest,
-                                                const Babl          *format);
-void                 gegl_gpu_texture_set      (GeglGpuTexture      *texture,
-                                                const GeglRectangle *roi,
-                                                gpointer             src,
-                                                const Babl          *format);
-void                 gegl_gpu_texture_clear    (GeglGpuTexture      *texture,
-                                                const GeglRectangle *roi);
-void                 gegl_gpu_texture_copy     (GeglGpuTexture      *src,
-                                                const GeglRectangle *src_roi,
-                                                GeglGpuTexture      *dest,
-                                                gint                 dest_x,
-                                                gint                 dest_y);
-GeglGpuTexture      *gegl_gpu_texture_dup      (GeglGpuTexture      *texture);
+GeglGpuTexture      *gegl_gpu_texture_new      (gint                  width,
+                                                gint                  height,
+                                                const Babl           *format);
+void                 gegl_gpu_texture_free     (GeglGpuTexture       *texture);
+void                 gegl_gpu_texture_get      (const GeglGpuTexture *texture,
+                                                const GeglRectangle  *roi,
+                                                gpointer              dest,
+                                                const Babl           *format);
+void                 gegl_gpu_texture_set      (GeglGpuTexture       *texture,
+                                                const GeglRectangle  *roi,
+                                                gpointer              src,
+                                                const Babl           *format);
+void                 gegl_gpu_texture_clear    (GeglGpuTexture       *texture,
+                                                const GeglRectangle  *roi);
+void                 gegl_gpu_texture_copy     (const GeglGpuTexture *src,
+                                                const GeglRectangle  *src_roi,
+                                                GeglGpuTexture       *dest,
+                                                gint                  dest_x,
+                                                gint                  dest_y);
+GeglGpuTexture      *gegl_gpu_texture_dup      (const GeglGpuTexture *texture);
 
 #define gegl_gpu_texture_get_width(texture)  (texture->width)
 #define gegl_gpu_texture_get_height(texture) (texture->height)
