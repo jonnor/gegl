@@ -152,7 +152,10 @@ get_tile (GeglTileSource *tile_store,
     entry.y = y;
     entry.z = z;
 
-    tile             = gegl_tile_new (backend->tile_size);
+    tile = gegl_tile_new (backend->tile_width,
+                          backend->tile_height,
+                          backend->format);
+
     tile->stored_rev = 1;
     tile->rev        = 1;
 

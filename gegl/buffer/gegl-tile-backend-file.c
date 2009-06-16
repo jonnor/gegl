@@ -458,7 +458,10 @@ gegl_tile_backend_file_get_tile (GeglTileSource *self,
   if (!entry)
     return NULL;
 
-  tile             = gegl_tile_new (backend->tile_size);
+  tile = gegl_tile_new (backend->tile_width,
+                        backend->tile_height,
+                        backend->format);
+
   tile->rev        = entry->rev;
   tile->stored_rev = entry->rev;
 

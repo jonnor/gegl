@@ -128,6 +128,7 @@ constructor (GType                  type,
   gint           tile_width;
   gint           tile_height;
   gint           tile_size;
+  Babl          *format;
 
   object = G_OBJECT_CLASS (gegl_tile_handler_empty_parent_class)->constructor (type, n_params, params);
 
@@ -137,9 +138,12 @@ constructor (GType                  type,
   g_object_get (empty->backend, "tile-width", &tile_width,
                 "tile-height", &tile_height,
                 "tile-size", &tile_size,
+                "format", (gpointer) &format,
                 NULL);
+
+  empty->tile = gegl_tile_new (tile_width, tile_height, format);
+
   /* FIXME: need babl format here */
-  empty->tile = gegl_tile_new (tile_size);
   memset (gegl_tile_get_data (empty->tile), 0x00, tile_size);
 
   return object;

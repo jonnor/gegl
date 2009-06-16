@@ -238,12 +238,15 @@ gegl_tile_dup (GeglTile *src)
 }
 
 GeglTile *
-gegl_tile_new (gint size)
+gegl_tile_new (gint        width,
+               gint        height,
+               const Babl *format)
 {
   GeglTile *tile = g_object_new (GEGL_TYPE_TILE, NULL);
 
-  tile->data       = gegl_malloc (size);
-  tile->size       = size;
+  tile->size       = width * height * babl_format_get_bytes_per_pixel (format);
+  tile->data       = gegl_malloc (tile->size);
+  tile->gpu_data   = gegl_gpu_texture_new (width, height, format);
   tile->stored_rev = 1;
 
   return tile;

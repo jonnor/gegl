@@ -80,7 +80,9 @@ struct _GeglTileClass
 
 GType        gegl_tile_get_type   (void) G_GNUC_CONST;
 
-GeglTile   * gegl_tile_new        (gint     size);
+GeglTile    *gegl_tile_new        (gint width,
+                                   gint height,
+                                   const Babl *format);
 
 void       * gegl_tile_get_format (GeglTile *tile);
 gint         gegl_tile_get_width  (GeglTile *tile);

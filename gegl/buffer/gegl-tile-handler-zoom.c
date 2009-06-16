@@ -261,7 +261,7 @@ get_tile (GeglTileSource *gegl_tile_source,
     g_assert (tile == NULL);
     if (tile == NULL)
       {
-        tile = gegl_tile_new (tile_size);
+        tile = gegl_tile_new (tile_width, tile_height, format);
 
         tile->x          = x;
         tile->y          = y;
