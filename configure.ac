@@ -950,6 +950,44 @@ AM_CONDITIONAL(HAVE_SPIRO, test "$spiro_ok" = "yes")
 AC_SUBST(LIBSPIRO)
 
 
+#######################
+# Check for GPU support
+#######################
+
+AC_ARG_WITH(gpu,      [  --without-gpu           build without GPU support])
+
+have_gpu="no"
+if test "x$with_gpu" != "xno"; then
+  PKG_CHECK_MODULES(GPU, gl,
+    have_gpu="yes",
+    have_gpu="no  (OpenGL library not found)")
+  # verify the presence of the glut.h header
+  if test "x$have_gpu" = "xyes"; then
+    AC_MSG_CHECKING([for GL/glut.h])
+    AC_TRY_CPP([#include <GL/glut.h>],
+      have_gpu="yes",
+      have_gpu="no  (Can't include GL/glut.h)")
+      AC_MSG_RESULT($gpu_ok)
+  fi
+  # verify the presence of the glew.h header
+  if test "x$have_gpu" = "xyes"; then
+    AC_MSG_CHECKING([for GL/glew.h])
+    AC_TRY_CPP([#include <GL/glew.h>],
+      have_gpu="yes"
+      AC_DEFINE(HAVE_GPU, 1,
+                [Define to 1 if all OpenGL dependencies are available])
+      GPU_LIBS="$GPU_LIBS -lglut -lGLEW",
+      have_gpu="no  (Can't include GL/glew.h)")
+      AC_MSG_RESULT($have_gpu)
+  fi
+fi
+
+AM_CONDITIONAL(HAVE_GPU, test "x$have_gpu" = "xyes")
+
+AC_SUBST(GPU_CFLAGS)
+AC_SUBST(GPU_LIBS)
+
+
 
 
 #######################
@@ -977,6 +1015,7 @@ gegl/Makefile
 gegl/gegl-version.h
 gegl/buffer/Makefile
 gegl/graph/Makefile
+gegl/gpu/Makefile
 gegl/module/Makefile
 gegl/operation/Makefile
 gegl/process/Makefile
@@ -1013,6 +1052,7 @@ Optional features:
   Build workshop: $enable_workshop
   Build website:  $have_asciidoc
   SIMD:           sse:$enable_sse mmx:$enable_mmx
+  GPU:            $have_gpu
 
 Optional dependencies:
   asciidoc:       $have_asciidoc

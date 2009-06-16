@@ -2,12 +2,14 @@ if OS_WIN32
 no_undefined = -no-undefined
 endif
 
-SUBDIRS = buffer graph module operation process property-types
+SUBDIRS = buffer gpu graph module operation process property-types
 
 AM_CPPFLAGS = \
 	-I$(top_srcdir) \
 	-I$(top_builddir)/gegl/buffer \
 	-I$(top_srcdir)/gegl/buffer \
+	-I$(top_builddir)/gegl/gpu \
+	-I$(top_srcdir)/gegl/gpu \
 	-I$(top_builddir)/gegl/property-types \
 	-I$(top_srcdir)/gegl/property-types \
 	-I$(top_builddir)/gegl/operation \
@@ -35,6 +37,8 @@ GEGL_public_HEADERS =	\
     gegl-plugin.h			\
     gegl-version.h			\
     buffer/gegl-buffer.h		\
+    gpu/gegl-gpu-types.h \
+    gpu/gegl-gpu-texture.h \
     property-types/gegl-paramspecs.h	\
     property-types/gegl-color.h		\
     property-types/gegl-path.h		\
@@ -70,6 +74,7 @@ lib_LTLIBRARIES = libgegl-@GEGL_API_VERSION@.la
 libgegl_@GEGL_API_VERSION@_la_SOURCES = $(GEGL_sources) $(GEGL_public_HEADERS)
 libgegl_@GEGL_API_VERSION@_la_LIBADD = \
 	$(top_builddir)/gegl/buffer/libbuffer.la		\
+	$(top_builddir)/gegl/gpu/libgpu.la		\
 	$(top_builddir)/gegl/module/libmodule.la		\
 	$(top_builddir)/gegl/operation/liboperation.la		\
 	$(top_builddir)/gegl/graph/libgraph.la			\
