@@ -279,7 +279,7 @@ get_tile (GeglTileSource *gegl_tile_source,
             }
         }
       }
-    gegl_tile_lock (tile);
+    gegl_tile_lock (tile, GEGL_TILE_LOCK_WRITE);
     data = gegl_tile_get_data (tile);
 
     for (i = 0; i < 2; i++)

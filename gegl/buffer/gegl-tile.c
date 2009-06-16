@@ -38,6 +38,7 @@
 #include "gegl-gpu-types.h"
 #include "gegl-gpu-texture.h"
 
+
 G_DEFINE_TYPE (GeglTile, gegl_tile, G_TYPE_OBJECT)
 enum
 {
@@ -139,7 +140,6 @@ dispose (GObject *object)
           if (tile->destroy_notify)
             tile->destroy_notify (tile->data, tile->gpu_data,
                                   tile->destroy_notify_data);
-
           tile->data     = NULL;
           tile->gpu_data = NULL;
         }
@@ -201,9 +201,12 @@ gegl_tile_init (GeglTile *tile)
   tile->tile_storage = NULL;
 
   tile->rev        = 0;
+  tile->gpu_rev    = 0;
   tile->stored_rev = 0;
 
-  tile->lock       = 0;
+  tile->read_locks  = 0;
+  tile->write_locks = 0;
+  tile->lock_mode   = GEGL_TILE_LOCK_NONE;
 
   tile->next_shared = tile;
   tile->prev_shared = tile;
@@ -227,6 +230,7 @@ gegl_tile_dup (GeglTile *src)
   tile->tile_storage = src->tile_storage;
 
   tile->rev        = 1;
+  tile->gpu_rev    = 1;
   tile->stored_rev = 1;
 
   tile->next_shared              = src->next_shared;
@@ -238,9 +242,7 @@ gegl_tile_dup (GeglTile *src)
 }
 
 GeglTile *
-gegl_tile_new (gint        width,
-               gint        height,
-               const Babl *format)
+gegl_tile_new (gint width, gint height, const Babl *format)
 {
   GeglTile *tile = g_object_new (GEGL_TYPE_TILE, NULL);
 
@@ -270,6 +272,18 @@ gegl_tile_get_height (GeglTile *tile)
   return tile->tile_storage->tile_height;
 }
 
+void *
+gegl_tile_get_data (GeglTile *tile)
+{
+  return tile->data;
+}
+
+GeglGpuTexture *
+gegl_tile_get_gpu_data (GeglTile *tile)
+{
+  return tile->gpu_data;
+}
+
 static gpointer
 gegl_memdup (gpointer src, gsize size)
 {
@@ -296,28 +310,83 @@ gegl_tile_unclone (GeglTile *tile)
     }
 }
 
-static gint total_locks   = 0;
-static gint total_unlocks = 0;
+static gint total_write_locks   = 0;
+static gint total_write_unlocks = 0;
+
+static gint total_read_locks    = 0;
+static gint total_read_unlocks  = 0;
 
 void
-gegl_tile_lock (GeglTile *tile)
+gegl_tile_lock (GeglTile *tile, GeglTileLockMode lock_mode)
 {
-  if (tile->lock != 0)
+  if (tile->write_locks > 0)
     {
-      g_print ("hm\n");
-      g_warning ("strange tile lock count: %i", tile->lock);
+      if (lock_mode & ~GEGL_TILE_LOCK_WRITE
+          || lock_mode & ~GEGL_TILE_LOCK_GPU_WRITE)
+        {
+          g_print ("hm\n");
+          g_warning ("strange tile write-lock count: %i", tile->write_locks);
+        }
+
+      if (lock_mode & ~GEGL_TILE_LOCK_READ
+          || lock_mode & ~GEGL_TILE_LOCK_GPU_READ)
+        g_warning ("shouldn't lock for reading while write-lock (%i) is active",
+                   tile->write_locks);
     }
-  total_locks++;
+
+  if (tile->read_locks > 0)
+    {
+      if (lock_mode & ~GEGL_TILE_LOCK_READ
+          || lock_mode & ~GEGL_TILE_LOCK_GPU_READ)
+        {
+          g_print ("hm\n");
+          g_warning ("strange tile read-lock count: %i", tile->read_locks);
+        }
+
+      if (lock_mode & ~GEGL_TILE_LOCK_WRITE
+          || lock_mode & ~GEGL_TILE_LOCK_GPU_WRITE)
+        g_warning ("shouldn't lock for writing while read-lock (%i) is active",
+                   tile->read_locks);
+    }
 
 #if ENABLE_MP
-  g_mutex_lock (tile->mutex);
+    g_static_mutex_lock (tile->mutex);
 #endif
 
-  tile->lock++;
-  /*fprintf (stderr, "global tile locking: %i %i\n", locks, unlocks);*/
+  if (lock_mode & ~GEGL_TILE_LOCK_READ
+      || lock_mode & ~GEGL_TILE_LOCK_GPU_READ)
+    {
+      tile->read_locks++;
+      total_read_locks++;
+    }
 
-  gegl_tile_unclone (tile);
-  /*gegl_buffer_add_dirty (tile->buffer, tile->x, tile->y);*/
+  if (lock_mode & ~GEGL_TILE_LOCK_WRITE
+      || lock_mode & ~GEGL_TILE_LOCK_GPU_WRITE)
+    {
+      tile->write_locks++;
+      total_write_locks++;
+
+      /*fprintf (stderr, "global tile locking: %i %i\n", locks, unlocks);*/
+      gegl_tile_unclone (tile);
+      /*gegl_buffer_add_dirty (tile->buffer, tile->x, tile->y);*/
+    }
+
+  if (lock_mode & ~GEGL_TILE_LOCK_GPU_READ && tile->rev > tile->gpu_rev)
+    {
+      gegl_gpu_texture_set (tile->gpu_data, NULL, tile->data,
+                            gegl_tile_get_format (tile));
+
+      tile->gpu_rev = tile->rev;
+    }
+
+  if (lock_mode & ~GEGL_TILE_LOCK_READ && tile->gpu_rev > tile->rev)
+    {
+      gegl_gpu_texture_get (tile->gpu_data, NULL, tile->data,
+                            gegl_tile_get_format (tile));
+
+      tile->rev = tile->gpu_rev;
+    }
+  tile->lock_mode = lock_mode;
 }
 
 static void
@@ -337,7 +406,7 @@ gegl_tile_void_pyramid (GeglTile *tile)
 {
   if (tile->tile_storage && 
       tile->tile_storage->seen_zoom &&
-      tile->z == 0) /* we only accepting voiding the base level */
+      tile->z == 0) /* we only accept voiding the base level */
     {
       _gegl_tile_void_pyramid (GEGL_TILE_SOURCE (tile->tile_storage), 
                                tile->x/2,
@@ -350,37 +419,60 @@ gegl_tile_void_pyramid (GeglTile *tile)
 void
 gegl_tile_unlock (GeglTile *tile)
 {
-  total_unlocks++;
-  if (tile->lock == 0)
+  if (tile->lock_mode & ~GEGL_TILE_LOCK_WRITE
+      || tile->lock_mode & ~GEGL_TILE_LOCK_GPU_WRITE)
     {
-      g_warning ("unlocked a tile with lock count == 0");
+      total_write_unlocks++;
+
+      if (tile->write_locks == 0)
+        g_warning ("unlocked a tile with write-lock count == 0");
+      tile->write_locks--;
+
+      if (tile->write_locks == 0)
+        {
+          guint rev     = tile->rev;
+          guint gpu_rev = tile->gpu_rev;
+
+          if (tile->lock_mode & ~GEGL_TILE_LOCK_GPU_WRITE)
+            tile->gpu_rev = MAX (gpu_rev, rev) + 1;
+
+          if (tile->lock_mode & ~GEGL_TILE_LOCK_WRITE)
+            tile->rev = MAX (rev, gpu_rev) + 1;
+
+          /* TODO: examine how this can be improved with h/w mipmaps */
+          if (tile->z == 0)
+            gegl_tile_void_pyramid (tile);
+        }
     }
-  tile->lock--;
-  if (tile->lock == 0 &&
-      tile->z == 0)
+
+  if (tile->lock_mode & ~GEGL_TILE_LOCK_READ
+      || tile->lock_mode & ~GEGL_TILE_LOCK_GPU_READ)
     {
-      gegl_tile_void_pyramid (tile);
+      total_read_unlocks++;
+
+      if (tile->read_locks == 0)
+        g_warning ("unlocked a tile with read-lock count == 0");
+      tile->read_locks--;
     }
-  if (tile->lock==0)
-    tile->rev++;
 #if ENABLE_MP
   g_mutex_unlock (tile->mutex);
 #endif
+  tile->lock_mode = GEGL_TILE_LOCK_NONE;
 }
-
 
 gboolean
 gegl_tile_is_stored (GeglTile *tile)
 {
-  return tile->stored_rev == tile->rev;
+  return tile->stored_rev == MAX (tile->rev, tile->gpu_rev);
 }
 
 void
 gegl_tile_void (GeglTile *tile)
 {
-  tile->stored_rev = tile->rev;
+  tile->stored_rev   = MAX (tile->rev, tile->gpu_rev);
   tile->tile_storage = NULL;
-  if (tile->z==0)
+
+  if (tile->z == 0)
     gegl_tile_void_pyramid (tile);
 }
 
@@ -388,10 +480,13 @@ void
 gegl_tile_cpy (GeglTile *src,
                GeglTile *dst)
 {
-  gegl_tile_lock (dst);
+  gegl_tile_lock (src, GEGL_TILE_LOCK_ALL_READ);
+  gegl_tile_lock (dst, GEGL_TILE_LOCK_ALL_WRITE);
 
   gegl_free (dst->data);
   dst->data = NULL;
+  gegl_gpu_texture_free (dst->gpu_data);
+  dst->gpu_data = NULL;
 
   dst->next_shared              = src->next_shared;
   src->next_shared              = dst;
@@ -399,15 +494,21 @@ gegl_tile_cpy (GeglTile *src,
   dst->next_shared->prev_shared = dst;
 
   dst->data = src->data;
+  dst->gpu_data = src->gpu_data;
 
   gegl_tile_unlock (dst);
+  gegl_tile_unlock (src);
 }
 
 void
 gegl_tile_swp (GeglTile *a,
                GeglTile *b)
 {
-  guchar *tmp;
+  guchar         *tmp_data;
+  GeglGpuTexture *tmp_gpu_data;
+
+  gegl_tile_lock (a, GEGL_TILE_LOCK_ALL);
+  gegl_tile_lock (b, GEGL_TILE_LOCK_ALL);
 
   gegl_tile_unclone (a);
   gegl_tile_unclone (b);
@@ -417,24 +518,36 @@ gegl_tile_swp (GeglTile *a,
 
   g_assert (a->size == b->size);
 
-  tmp     = a->data;
-  a->data = b->data;
-  b->data = tmp;
+  tmp_data = a->data;
+  a->data  = b->data;
+  b->data  = tmp_data;
+
+  tmp_gpu_data = a->gpu_data;
+  a->gpu_data  = b->gpu_data;
+  b->gpu_data  = tmp_gpu_data;
+
+  gegl_tile_unlock (a);
+  gegl_tile_unlock (b);
 }
 
 gboolean gegl_tile_store (GeglTile *tile)
 {
+  gboolean stored;
+
   if (gegl_tile_is_stored (tile))
     return TRUE;
+
   if (tile->tile_storage == NULL)
     return FALSE;
-  return gegl_tile_source_set_tile (GEGL_TILE_SOURCE (tile->tile_storage),
-                                    tile->x,
-                                    tile->y,
-                                    tile->z,
-                                    tile);
+
+  gegl_tile_lock (tile, GEGL_TILE_LOCK_ALL_READ);
+  stored = gegl_tile_source_set_tile (GEGL_TILE_SOURCE (tile->tile_storage),
+                                      tile->x,
+                                      tile->y,
+                                      tile->z,
+                                      tile);
+  gegl_tile_unlock (tile);
+
+  /* XXX: shouldn't the revision numbers be updated just about here? */
+  return stored;
 }
-
-
-
-

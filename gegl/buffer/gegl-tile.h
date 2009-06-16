@@ -31,6 +31,24 @@
 #define GEGL_IS_TILE_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass),  GEGL_TYPE_TILE))
 #define GEGL_TILE_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj),  GEGL_TYPE_TILE, GeglTileClass))
 
+typedef enum
+{
+  GEGL_TILE_LOCK_NONE,
+  GEGL_TILE_LOCK_READ          = (1 << 1),
+  GEGL_TILE_LOCK_WRITE         = (1 << 2),
+  GEGL_TILE_LOCK_GPU_READ      = (1 << 3),
+  GEGL_TILE_LOCK_GPU_WRITE     = (1 << 4),
+  GEGL_TILE_LOCK_READWRITE     = GEGL_TILE_LOCK_READ
+                                 | GEGL_TILE_LOCK_WRITE,
+  GEGL_TILE_LOCK_GPU_READWRITE = GEGL_TILE_LOCK_GPU_READ
+                                 | GEGL_TILE_LOCK_GPU_WRITE,
+  GEGL_TILE_LOCK_ALL_READ      = GEGL_TILE_LOCK_READ
+                                 | GEGL_TILE_LOCK_GPU_READ,
+  GEGL_TILE_LOCK_ALL_WRITE     = GEGL_TILE_LOCK_WRITE
+                                 | GEGL_TILE_LOCK_GPU_WRITE,
+  GEGL_TILE_LOCK_ALL           = GEGL_TILE_LOCK_ALL_READ
+                                 | GEGL_TILE_LOCK_ALL_WRITE
+} GeglTileLockMode;
 
 /* the instance size of a GeglTile is a bit large, and should if possible be
  * trimmed down
@@ -39,25 +57,36 @@ struct _GeglTile
 {
   GObject          parent_instance;
 
-  guchar          *data;        /* actual pixel data for tile, a linear buffer*/
-  gint             size;        /* The size of the linear buffer */
-  GeglGpuTexture  *gpu_data;    /* pixel data for tile, stored in the GPU */
+  guchar          *data;         /* actual pixel data for tile,
+                                  * a linear buffer
+                                  */
+  gint             size;         /* The size of the linear buffer */
+  GeglGpuTexture  *gpu_data;     /* pixel data for tile, stored in the GPU */
 
   GeglTileStorage *tile_storage; /* the buffer from which this tile was
-                                  * retrieved needed for the tile to be able to
-                                  * store itself back (for instance when it is
-                                  * unreffed for the last time)
+                                  * retrieved, needed for the tile to be able
+                                  * to store itself back (for instance when it
+                                  * is unreffed for the last time)
                                   */
   gint             x, y, z;
 
+  guint            rev;          /* this tile's revision */
+  guint            gpu_rev;      /* this tile's GPU data revision */ 
+  guint            stored_rev;   /* what revision was the tile when it was
+                                  * committed to the tile_storage? (currently
+                                  * set to 1 when loaded from disk)
+                                  */
 
-  guint            rev;         /* this tile revision */
-  guint            stored_rev;  /* what revision was we when we from tile_storage?
-                                   (currently set to 1 when loaded from disk */
+  guint            read_locks;   /* number of times the tile is read-locked,
+                                  * should in theory just have the values 0/1,
+                                  * note that we might want to have shared
+                                  * reads though (not yet implemented)
+                                  */
+  gchar            write_locks;  /* number of times the tile is write-locked,
+                                  * should in theory just have the values 0/1
+                                  */
+  GeglTileLockMode lock_mode;
 
-  gchar            lock;        /* number of times the tile is write locked
-                                 * should in theory just have the values 0/1
-                                 */
 #if ENABLE_MP
   GMutex          *mutex;
 #endif
@@ -70,7 +99,7 @@ struct _GeglTile
                           GeglGpuTexture *gpu_data,
                           gpointer        data);
 
-  gpointer destroy_notify_data;
+  gpointer         destroy_notify_data;
 };
 
 struct _GeglTileClass
@@ -78,21 +107,21 @@ struct _GeglTileClass
   GObjectClass parent_class;
 };
 
-GType        gegl_tile_get_type   (void) G_GNUC_CONST;
+GType           gegl_tile_get_type     (void) G_GNUC_CONST;
 
-GeglTile    *gegl_tile_new        (gint width,
-                                   gint height,
-                                   const Babl *format);
+GeglTile       *gegl_tile_new          (gint width,
+                                        gint height,
+                                        const Babl *format);
 
-void       * gegl_tile_get_format (GeglTile *tile);
-gint         gegl_tile_get_width  (GeglTile *tile);
-gint         gegl_tile_get_height (GeglTile *tile);
+void           *gegl_tile_get_format   (GeglTile *tile);
+gint            gegl_tile_get_width    (GeglTile *tile);
+gint            gegl_tile_get_height   (GeglTile *tile);
 
-
-/* lock a tile for writing, this would allow writing to buffers
- * later gotten with get_data()
+/* lock a tile for access, this would allow access to buffers
+ * later gotten with get_data() or get_gpu_data()
  */
-void         gegl_tile_lock       (GeglTile *tile);
+void            gegl_tile_lock         (GeglTile *tile,
+                                        GeglTileLockMode lock_mode);
 
 /* get a pointer to the linear buffer of the tile */
 void           *gegl_tile_get_data     (GeglTile *tile);
@@ -100,39 +129,37 @@ void           *gegl_tile_get_data     (GeglTile *tile);
 /* get a pointer to the GPU data of the tile */
 GeglGpuTexture *gegl_tile_get_gpu_data (GeglTile *tile);
 
-/* unlock the tile notifying the tile that we're done manipulating
- * the data.
+/* unlock the tile notifying the tile that we're done accessing
+ * the data
  */
-void         gegl_tile_unlock     (GeglTile *tile);
+void            gegl_tile_unlock       (GeglTile *tile);
 
+gboolean        gegl_tile_is_stored    (GeglTile *tile);
+gboolean        gegl_tile_store        (GeglTile *tile);
+void            gegl_tile_void         (GeglTile *tile);
+GeglTile       *gegl_tile_dup          (GeglTile *tile);
 
-
-gboolean     gegl_tile_is_stored  (GeglTile *tile);
-gboolean     gegl_tile_store      (GeglTile *tile);
-void         gegl_tile_void       (GeglTile *tile);
-GeglTile    *gegl_tile_dup        (GeglTile *tile);
-
-/* computes the positive integer remainder (also for negative dividends)
- */
+/* computes the positive integer remainder (also for negative dividends) */
 #define GEGL_REMAINDER(dividend, divisor) \
                    (((dividend) < 0) ? \
-                    (divisor) - 1 - ((-((dividend) + 1)) % (divisor)) : \
-                    (dividend) % (divisor))
+                     (divisor) - 1 - ((-((dividend) + 1)) % (divisor)) : \
+                     (dividend) % (divisor))
 
-#define gegl_tile_offset(coordinate, stride) GEGL_REMAINDER((coordinate), (stride))
+#define gegl_tile_offset(coordinate, stride) \
+                   GEGL_REMAINDER ((coordinate), (stride))
 
 /* helper function to compute tile indices and offsets for coordinates
  * based on a tile stride (tile_width or tile_height)
  */
-#define gegl_tile_index(coordinate,stride) \
-  (((coordinate) >= 0)?\
-      (coordinate) / (stride):\
-      ((((coordinate) + 1) /(stride)) - 1))
+#define gegl_tile_indice(coordinate, stride) \
+                   (((coordinate) >= 0) ? \
+                     (coordinate) / (stride) : \
+                     ((((coordinate) + 1) / (stride)) - 1))
 
 /* utility low-level functions used by undo system */
-void         gegl_tile_swp        (GeglTile *a,
-                                   GeglTile *b);
-void         gegl_tile_cpy        (GeglTile *src,
-                                   GeglTile *dst);
+void            gegl_tile_swp          (GeglTile *a,
+                                        GeglTile *b);
+void            gegl_tile_cpy          (GeglTile *src,
+                                        GeglTile *dst);
 
-#endif
+#endif /* __GEGL_TILE_H__ */
