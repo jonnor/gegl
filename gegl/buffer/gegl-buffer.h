@@ -22,6 +22,8 @@
 #include <glib-object.h>
 #include <babl/babl.h>
 
+#include "gegl-gpu-types.h"
+
 G_BEGIN_DECLS
 
 #define GEGL_TYPE_BUFFER (gegl_buffer_get_type ())
@@ -221,6 +223,11 @@ void            gegl_buffer_get               (GeglBuffer          *buffer,
                                                gpointer             dest,
                                                gint                 rowstride);
 
+void            gegl_buffer_gpu_get           (GeglBuffer           *buffer,
+                                               gdouble               scale,
+                                               const GeglRectangle  *rect,
+                                               GeglGpuTexture       *dest);
+
 /**
  * gegl_buffer_set:
  * @buffer: the buffer to modify.
@@ -237,6 +244,10 @@ void            gegl_buffer_set               (GeglBuffer          *buffer,
                                                const Babl          *format,
                                                void                *src,
                                                gint                 rowstride);
+
+void            gegl_buffer_gpu_set           (GeglBuffer           *buffer,
+                                               const GeglRectangle  *rect,
+                                               const GeglGpuTexture *src);
 
 
 /**

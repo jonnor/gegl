@@ -43,6 +43,10 @@
 #include "gegl-tile-backend.h"
 #include "gegl-buffer-iterator.h"
 
+#include "gegl-region.h"
+#include "gegl-gpu-types.h"
+#include "gegl-gpu-texture.h"
+
 #if ENABLE_MP
 GStaticRecMutex mutex = G_STATIC_REC_MUTEX_INIT;
 #endif
@@ -215,6 +219,69 @@ gegl_buffer_set_pixel (GeglBuffer *buffer,
 }
 
 static inline void
+gegl_buffer_gpu_set_pixel (GeglBuffer           *buffer,
+                           gint                  x,
+                           gint                  y,
+                           const GeglGpuTexture *src)
+{
+  x += buffer->shift_x;
+  y += buffer->shift_y;
+
+  if (gegl_buffer_in_abyss (buffer, x, y))
+    {
+      /* pixel is in abyss */
+      return;
+    }
+  else
+    {
+      gint tile_width  = buffer->tile_storage->tile_width;
+      gint tile_height = buffer->tile_storage->tile_height;
+
+      GeglTile *tile    = NULL;
+      gint      index_x = gegl_tile_index (x, tile_width);
+      gint      index_y = gegl_tile_index (y, tile_height);
+
+      if (buffer->hot_tile
+          && buffer->hot_tile->x == index_x
+          && buffer->hot_tile->y == index_y)
+        {
+          tile = buffer->hot_tile;
+        }
+      else
+        {
+          if (buffer->hot_tile)
+            {
+              g_object_unref (buffer->hot_tile);
+              buffer->hot_tile = NULL;
+            }
+          tile = gegl_tile_source_get_tile ((GeglTileSource *) buffer,
+                                            index_x,
+                                            index_y,
+                                            0);
+        }
+
+      if (tile)
+        {
+          gint offset_x = gegl_tile_offset (x, tile_width);
+          gint offset_y = gegl_tile_offset (y, tile_height);
+
+          GeglGpuTexture *dest;
+          GeglRectangle   one_pixel = {0, 0, 1, 1};
+
+          gegl_tile_lock (tile, GEGL_TILE_LOCK_GPU_WRITE);
+          dest = gegl_tile_get_gpu_data (tile);
+          gegl_gpu_texture_copy (src,
+                                 &one_pixel,
+                                 dest,
+                                 offset_x,
+                                 offset_y);
+          gegl_tile_unlock (tile);
+          buffer->hot_tile = tile;
+        }
+    }
+}
+
+static inline void
 gegl_buffer_get_pixel (GeglBuffer *buffer,
                        gint        x,
                        gint        y,
@@ -286,6 +353,71 @@ gegl_buffer_get_pixel (GeglBuffer *buffer,
           }
       }
   }
+}
+
+static inline void
+gegl_buffer_gpu_get_pixel (GeglBuffer     *buffer,
+                           gint            x,
+                           gint            y,
+                           GeglGpuTexture *dest)
+{
+  x += buffer->shift_x;
+  y += buffer->shift_y;
+
+  if (gegl_buffer_in_abyss (buffer, x, y))
+    {
+      /* pixel is in abyss */
+      GeglRectangle one_pixel = {0, 0, 1, 1};
+      gegl_gpu_texture_clear (dest, &one_pixel);
+      return;
+    }
+  else
+    {
+      gint tile_width  = buffer->tile_storage->tile_width;
+      gint tile_height = buffer->tile_storage->tile_height;
+
+      GeglTile *tile     = NULL;
+      gint      index_x  = gegl_tile_index (x, tile_width);
+      gint      index_y  = gegl_tile_index (y, tile_height);
+
+      if (buffer->hot_tile &&
+          buffer->hot_tile->x == index_x &&
+          buffer->hot_tile->y == index_y)
+        {
+          tile = buffer->hot_tile;
+        }
+      else
+        {
+          if (buffer->hot_tile)
+            {
+              g_object_unref (buffer->hot_tile);
+              buffer->hot_tile = NULL;
+            }
+          tile = gegl_tile_source_get_tile ((GeglTileSource *) buffer,
+                                            index_x,
+                                            index_y,
+                                            0);
+        }
+
+      if (tile)
+        {
+          gint offset_x = gegl_tile_offset (x, tile_width);
+          gint offset_y = gegl_tile_offset (y, tile_height);
+
+          GeglGpuTexture *src;
+          GeglRectangle   one_pixel = {offset_x, offset_y, 1, 1};
+
+          gegl_tile_lock (tile, GEGL_TILE_LOCK_GPU_READ);
+          src = gegl_tile_get_gpu_data (tile);
+          gegl_gpu_texture_copy (src,
+                                 &one_pixel,
+                                 dest,
+                                 0,
+                                 0);
+          gegl_tile_unlock (tile);
+          buffer->hot_tile = tile;
+        }
+    }
 }
 
 /* flush any unwritten data (flushes the hot-cache of a single
@@ -583,6 +715,201 @@ gegl_buffer_iterate (GeglBuffer          *buffer,
     }
 }
 
+static void inline
+gegl_buffer_gpu_iterate (GeglBuffer          *buffer,
+                         const GeglRectangle *roi, /* or NULL for extent */
+                         GeglGpuTexture      *texture,
+                         gboolean             write,
+                         gint                 level)
+{
+  GeglRectangle original_rect;
+  GeglRectangle abyss;
+  GeglRectangle final_rect;
+
+  gint factor = 1;
+
+  gint tile_width  = buffer->tile_storage->tile_width;
+  gint tile_height = buffer->tile_storage->tile_height;
+
+  gint last_x;
+  gint last_y;
+
+  gint first_tile_index_x;
+  gint first_tile_index_y;
+  gint last_tile_index_x;
+  gint last_tile_index_y;
+
+  gint first_tile_offset_x;
+  gint first_tile_offset_y;
+  gint last_tile_offset_x;
+  gint last_tile_offset_y;
+
+  gint first_texture_x;
+  gint first_texture_y;
+
+  gint tile_index_y;
+  gint tile_offset_y;
+  gint texture_y;
+  gint copy_area_height;
+
+  gint tile_index_x;
+  gint tile_offset_x;
+  gint texture_x;
+  gint copy_area_width;
+
+  /* rectangle of interest on the texture */
+  GeglRectangle texture_rect;
+
+  gint cnt;
+
+  for (cnt = 0; cnt < level; cnt++)
+    factor *= 2;
+
+  if (roi)
+    {
+      original_rect.x      = (roi->x + buffer->shift_x) / factor;
+      original_rect.y      = (roi->y + buffer->shift_y) / factor;
+      original_rect.width  = roi->width / factor;
+      original_rect.height = roi->height / factor;
+    }
+  else
+    {
+      original_rect.x      = (buffer->extent.x + buffer->shift_x) / factor;
+      original_rect.y      = (buffer->extent.y + buffer->shift_y) / factor;
+      original_rect.width  = buffer->extent.width / factor;
+      original_rect.height = buffer->extent.height / factor;
+    }
+
+  abyss.x      = (buffer->abyss.x + buffer->shift_x) / factor;
+  abyss.y      = (buffer->abyss.y + buffer->shift_y) / factor;
+  abyss.width  = buffer->abyss.width / factor;
+  abyss.height = buffer->abyss.height / factor;
+
+  gegl_rectangle_intersect (&final_rect, &abyss, &original_rect);
+
+  last_x = final_rect.x + (final_rect.width - 1);
+  last_y = final_rect.y + (final_rect.height - 1);
+
+  first_tile_index_x = gegl_tile_index (final_rect.x, tile_width);
+  first_tile_index_y = gegl_tile_index (final_rect.y, tile_height);
+  last_tile_index_x  = gegl_tile_index (last_x, tile_width);
+  last_tile_index_y  = gegl_tile_index (last_y, tile_height);
+
+  first_tile_offset_x = gegl_tile_offset (final_rect.x, tile_width);
+  first_tile_offset_y = gegl_tile_offset (final_rect.y, tile_height);
+  last_tile_offset_x  = gegl_tile_offset (last_x, tile_width);
+  last_tile_offset_y  = gegl_tile_offset (last_y, tile_height);
+
+  first_texture_x = final_rect.x - original_rect.x;
+  first_texture_y = final_rect.y - original_rect.y;
+
+  for (tile_index_y       = first_tile_index_y,
+         tile_offset_y    = first_tile_offset_y,
+         texture_y        = first_texture_y,
+         copy_area_height = tile_height - tile_offset_y;
+
+       tile_index_y <= last_tile_index_y;
+
+       tile_index_y++,
+         tile_offset_y     = 0,
+         texture_y        += copy_area_height,
+         copy_area_height  = tile_index_y < last_tile_index_y
+                              ? tile_height
+                              : last_tile_offset_y)
+    {
+      for (tile_index_x       = first_tile_index_x,
+             tile_offset_x    = first_tile_offset_x,
+             texture_x        = first_texture_x,
+             copy_area_width  = tile_width - tile_offset_x;
+
+           tile_index_x <= last_tile_index_x;
+
+           tile_index_x++,
+             tile_offset_x     = 0,
+             texture_x        += copy_area_width,
+             copy_area_width   = tile_index_x < last_tile_index_x
+                                 ? tile_width
+                                 : last_tile_offset_x)
+        {
+          GeglTile *tile = gegl_tile_source_get_tile ((GeglTileSource *) buffer,
+                                                      tile_index_x,
+                                                      tile_index_y,
+                                                      level);
+
+          if (!tile)
+            {
+              g_warning ("didn't get tile, trying to continue");
+              continue;
+            }
+
+          if (write)
+            {
+              GeglGpuTexture *dest;
+              GeglRectangle   temp_rect = {
+                                            texture_x,
+                                            texture_y,
+                                            copy_area_width,
+                                            copy_area_height
+                                          };
+
+              gegl_tile_lock (tile, GEGL_TILE_LOCK_GPU_WRITE);
+              dest = gegl_tile_get_gpu_data (tile);
+              gegl_gpu_texture_copy (texture,
+                                     &temp_rect,
+                                     dest,
+                                     tile_offset_x,
+                                     tile_offset_y);
+              gegl_tile_unlock (tile);
+            }
+          else
+            {
+              GeglGpuTexture *src;
+              GeglRectangle   temp_rect = {
+                                            tile_offset_x,
+                                            tile_offset_y,
+                                            copy_area_width,
+                                            copy_area_height
+                                          };
+
+              gegl_tile_lock (tile, GEGL_TILE_LOCK_GPU_READ);
+              src = gegl_tile_get_gpu_data (tile);
+              gegl_gpu_texture_copy (src,
+                                     &temp_rect,
+                                     texture,
+                                     texture_x,
+                                     texture_y);
+              gegl_tile_unlock (tile);
+            }
+        }
+    }
+  texture_rect = final_rect;
+
+  texture_rect.x = first_texture_x;
+  texture_rect.y = first_texture_y;
+
+  /* "read" from abyss */
+  if (!write && !gegl_rectangle_equal (&original_rect, &texture_rect))
+    {
+      GeglRegion *abyss_region   = gegl_region_rectangle (&original_rect);
+      GeglRegion *texture_region = gegl_region_rectangle (&texture_rect);
+
+      GeglRectangle **abyss_rects = g_new (GeglRectangle *, 1);
+      gint rect_count;
+
+      gegl_region_subtract (abyss_region, texture_region);
+      gegl_region_destroy  (texture_region);
+
+      gegl_region_get_rectangles (abyss_region, abyss_rects, &rect_count);
+
+      for (cnt = 0; cnt < rect_count; cnt++)
+        {
+          gegl_gpu_texture_clear (texture, abyss_rects[cnt]);
+          g_free (abyss_rects[cnt]);
+        }
+      gegl_region_destroy (abyss_region);
+    }
+}
+
 void
 gegl_buffer_set (GeglBuffer          *buffer,
                  const GeglRectangle *rect,
@@ -610,6 +937,37 @@ gegl_buffer_set (GeglBuffer          *buffer,
     }
 
   if (gegl_buffer_is_shared(buffer))
+    {
+      gegl_buffer_flush (buffer);
+    }
+  gegl_buffer_unlock (buffer); /* XXX: should this happen before flush? */
+#if ENABLE_MP
+  g_static_rec_mutex_unlock (&mutex);
+#endif
+}
+
+void
+gegl_buffer_gpu_set (GeglBuffer           *buffer,
+                     const GeglRectangle  *rect,
+                     const GeglGpuTexture *src)
+{
+  g_return_if_fail (GEGL_IS_BUFFER (buffer));
+
+#if ENABLE_MP
+  g_static_rec_mutex_lock (&mutex);
+#endif
+  gegl_buffer_lock (buffer);
+
+  if (rect != NULL && rect->width == 1 && rect->height == 1) /* fast path */
+    {
+      gegl_buffer_gpu_set_pixel (buffer, rect->x, rect->y, src);
+    }
+  else
+    {
+      gegl_buffer_gpu_iterate (buffer, rect, src, TRUE, 0);
+    }
+
+  if (gegl_buffer_is_shared (buffer))
     {
       gegl_buffer_flush (buffer);
     }
@@ -1065,6 +1423,154 @@ gegl_buffer_get (GeglBuffer          *buffer,
                             rowstride);
         }
       g_free (sample_buf);
+    }
+#if ENABLE_MP
+  g_static_rec_mutex_unlock (&mutex);
+#endif
+}
+
+void
+gegl_buffer_gpu_get (GeglBuffer          *buffer,
+                     gdouble              scale,
+                     const GeglRectangle *rect,
+                     GeglGpuTexture      *dest)
+{
+  g_return_if_fail (GEGL_IS_BUFFER (buffer));
+#if ENABLE_MP
+  g_static_rec_mutex_lock (&mutex);
+#endif
+
+  if (GEGL_FLOAT_EQUAL (scale, 1.0)
+      && rect != NULL
+      && rect->width == 1
+      && rect->height == 1)  /* fast path */
+    {
+      gegl_buffer_gpu_get_pixel (buffer, rect->x, rect->y, dest);
+#if ENABLE_MP
+      g_static_rec_mutex_unlock (&mutex);
+#endif
+      return;
+    }
+
+  if (rect == NULL && GEGL_FLOAT_EQUAL (scale, 1.0))
+    {
+      gegl_buffer_gpu_iterate (buffer, NULL, dest, FALSE, 0);
+#if ENABLE_MP
+      g_static_rec_mutex_unlock (&mutex);
+#endif
+      return;
+    }
+
+  if (rect->width == 0 || rect->height == 0)
+    {
+#if ENABLE_MP
+      g_static_rec_mutex_unlock (&mutex);
+#endif
+      return;
+    }
+
+  if (GEGL_FLOAT_EQUAL (scale, 1.0))
+    {
+      gegl_buffer_gpu_iterate (buffer, rect, dest, FALSE, 0);
+#if ENABLE_MP
+      g_static_rec_mutex_unlock (&mutex);
+#endif
+      return;
+    }
+  else
+    {
+      /* mostly, a direct copy from gegl_buffer_get()
+       *
+       * TODO: implement GPU-based resamplers to prevent reading back
+       *       to the CPU like what we are doing here
+       */
+      gint level      = 0;
+      gint buf_width  = rect->width / scale;
+      gint buf_height = rect->height / scale;
+      gint bpp        = babl_format_get_bytes_per_pixel (dest->format);
+
+      void         *dest_buf;
+      void         *sample_buf;
+      GeglRectangle sample_rect;
+
+      gint factor = 1;
+
+      gdouble offset_x;
+      gdouble offset_y;
+
+      sample_rect.x = floor (rect->x/scale);
+      sample_rect.y = floor (rect->y/scale);
+      sample_rect.width = buf_width;
+      sample_rect.height = buf_height;
+
+      while (scale <= 0.5)
+        {
+          scale  *= 2;
+          factor *= 2;
+          level++;
+        }
+
+      buf_width  /= factor;
+      buf_height /= factor;
+
+      /* ensure we always have some data to sample from */
+      sample_rect.width  += factor * 2;
+      sample_rect.height += factor * 2;
+      buf_width          += 2;
+      buf_height         += 2;
+
+      offset_x = rect->x - floor (rect->x / scale) * scale;
+      offset_y = rect->y - floor (rect->y / scale) * scale;
+
+      dest_buf = g_malloc (dest->width * dest->height * bpp);
+      sample_buf = g_malloc (buf_width * buf_height * bpp);
+
+      gegl_buffer_iterate (buffer, &sample_rect,
+                           sample_buf, GEGL_AUTO_ROWSTRIDE,
+                           FALSE, dest->format, level);
+#if 1
+      /* slows testing of rendering code speed to much for now and
+       * no time to make a fast implementation
+       */
+      if (babl_format_get_type (dest->format, 0) == babl_type ("u8")
+          && !(level == 0 && scale > 1.99))
+        {
+          /* do box-filter resampling if we're 8bit (which projections are) */
+
+          /* XXX: use box-filter also for > 1.99 when testing and probably
+           * later, there are some bugs when doing so
+           */
+          resample_boxfilter_u8 (dest_buf,
+                                 sample_buf,
+                                 rect->width,
+                                 rect->height,
+                                 buf_width,
+                                 buf_height,
+                                 offset_x,
+                                 offset_y,
+                                 scale,
+                                 bpp,
+                                 GEGL_AUTO_ROWSTRIDE);
+        }
+      else
+#endif
+        {
+          resample_nearest (dest_buf,
+                            sample_buf,
+                            rect->width,
+                            rect->height,
+                            buf_width,
+                            buf_height,
+                            offset_x,
+                            offset_y,
+                            scale,
+                            bpp,
+                            GEGL_AUTO_ROWSTRIDE);
+        }
+      gegl_gpu_texture_set (dest, NULL, dest_buf, NULL);
+
+      g_free (sample_buf);
+      g_free (dest_buf);
     }
 #if ENABLE_MP
   g_static_rec_mutex_unlock (&mutex);
