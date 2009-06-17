@@ -155,7 +155,7 @@ gulp:
     {
       /* XXX: do we still need to handle the first condition below?
        *
-       * if (i->write && i->subrect.width == tile_width)
+       * if (i->subrect.width == tile_width && i->write)
        *   {
        *     gegl_tile_unlock (i->tile);
        *   }
