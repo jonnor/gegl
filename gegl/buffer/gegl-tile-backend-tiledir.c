@@ -180,7 +180,9 @@ set_tile (GeglTileSource *store,
   entry.y = y;
   entry.z = z;
 
+  gegl_tile_lock (tile, GEGL_TILE_LOCK_READ);
   gio_entry_write (tile_backend_tiledir, &entry, tile->data);
+  gegl_tile_unlock (tile);
   tile->stored_rev = tile->rev;
   return NULL;
 }

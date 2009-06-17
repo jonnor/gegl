@@ -153,10 +153,14 @@ gulp:
   /* unref previously held tile */
   if (i->tile)
     {
-      if (i->write && i->subrect.width == tile_width)
-        {
-          gegl_tile_unlock (i->tile);
-        }
+      /* XXX: do we still need to handle the first condition below?
+       *
+       * if (i->write && i->subrect.width == tile_width)
+       *   {
+       *     gegl_tile_unlock (i->tile);
+       *   }
+       */
+      gegl_tile_unlock (i->tile);
       g_object_unref (i->tile);
       i->tile = NULL;
     }
@@ -185,10 +189,16 @@ gulp:
                                                gegl_tile_index (tiledx, tile_width),
                                                gegl_tile_index (tiledy, tile_height),
                                                0);
-         if (i->write && tile_width==i->subrect.width)
-           {
-             gegl_tile_lock (i->tile, GEGL_TILE_LOCK_WRITE);
-           }
+
+         /* XXX: do we still need to handle the second condition below?
+          *
+          * if (i->write && tile_width==i->subrect.width)
+          */
+         if (i->write)
+           gegl_tile_lock (i->tile, GEGL_TILE_LOCK_WRITE);
+         else
+           gegl_tile_lock (i->tile, GEGL_TILE_LOCK_READ);
+
          i->data = gegl_tile_get_data (i->tile);
 
          {

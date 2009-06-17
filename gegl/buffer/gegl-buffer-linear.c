@@ -152,7 +152,7 @@ gegl_buffer_linear_open (GeglBuffer          *buffer,
                                         0,0,0);
       g_assert (tile);
       gegl_buffer_lock (buffer);
-      gegl_tile_lock (tile, GEGL_TILE_LOCK_WRITE);
+      gegl_tile_lock (tile, GEGL_TILE_LOCK_READWRITE);
 
       g_object_set_data (G_OBJECT (buffer), "linear-tile", tile);
 

@@ -187,7 +187,9 @@ gboolean set_tile (GeglTileSource *store,
       entry->z = z;
       g_hash_table_insert (tile_backend_ram->entries, entry, entry);
     }
+  gegl_tile_lock (tile, GEGL_TILE_LOCK_READ);
   ram_entry_write (tile_backend_ram, entry, tile->data);
+  gegl_tile_unlock (tile);
   tile->stored_rev = tile->rev;
   return TRUE;
 }
