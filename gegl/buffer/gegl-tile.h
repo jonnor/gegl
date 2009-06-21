@@ -113,7 +113,7 @@ GeglTile       *gegl_tile_new          (gint width,
                                         gint height,
                                         const Babl *format);
 
-void           *gegl_tile_get_format   (GeglTile *tile);
+Babl           *gegl_tile_get_format   (GeglTile *tile);
 gint            gegl_tile_get_width    (GeglTile *tile);
 gint            gegl_tile_get_height   (GeglTile *tile);
 
@@ -124,7 +124,7 @@ void            gegl_tile_lock         (GeglTile *tile,
                                         GeglTileLockMode lock_mode);
 
 /* get a pointer to the linear buffer of the tile */
-void           *gegl_tile_get_data     (GeglTile *tile);
+guchar         *gegl_tile_get_data     (GeglTile *tile);
 
 /* get a pointer to the GPU data of the tile */
 GeglGpuTexture *gegl_tile_get_gpu_data (GeglTile *tile);
@@ -151,7 +151,7 @@ GeglTile       *gegl_tile_dup          (GeglTile *tile);
 /* helper function to compute tile indices and offsets for coordinates
  * based on a tile stride (tile_width or tile_height)
  */
-#define gegl_tile_indice(coordinate, stride) \
+#define gegl_tile_index(coordinate, stride) \
                    (((coordinate) >= 0) ? \
                      (coordinate) / (stride) : \
                      ((((coordinate) + 1) / (stride)) - 1))

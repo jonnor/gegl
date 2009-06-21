@@ -16,7 +16,9 @@ AM_CPPFLAGS = \
 	-I$(top_builddir)/gegl/property-types \
 	-I$(top_srcdir)/gegl/property-types \
 	-I$(top_builddir)/gegl/operation \
-	-I$(top_srcdir)/gegl/operation
+	-I$(top_srcdir)/gegl/operation \
+	-I$(top_builddir)/gegl/gpu \
+	-I$(top_srcdir)/gegl/gpu
 AM_CFLAGS = $(DEP_CFLAGS) $(BABL_CFLAGS)
 
 buffer_test_LDADD = 						\

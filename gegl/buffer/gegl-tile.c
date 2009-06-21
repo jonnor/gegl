@@ -254,10 +254,10 @@ gegl_tile_new (gint width, gint height, const Babl *format)
   return tile;
 }
 
-void *
+Babl *
 gegl_tile_get_format (GeglTile *tile)
 {
-  return (void *) tile->tile_storage->format;
+  return tile->tile_storage->format;
 }
 
 gint
@@ -272,7 +272,7 @@ gegl_tile_get_height (GeglTile *tile)
   return tile->tile_storage->tile_height;
 }
 
-void *
+guchar *
 gegl_tile_get_data (GeglTile *tile)
 {
   return tile->data;
