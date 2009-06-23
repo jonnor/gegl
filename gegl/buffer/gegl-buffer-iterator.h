@@ -69,7 +69,7 @@ GeglBufferIterator * gegl_buffer_iterator_new  (GeglBuffer          *buffer,
  * the corresponding scans and regions will be serialized automatically using
  * gegl_buffer_get.
  *
- * Returns: an integer handle refering to the indice in the iterator structure
+ * Returns: an integer handle refering to the index in the iterator structure
  * of the added buffer.
  */
 gint                 gegl_buffer_iterator_add  (GeglBufferIterator  *iterator,

@@ -174,13 +174,13 @@ gegl_buffer_set_pixel (GeglBuffer *buffer,
       }
     else
       {
-        gint      indice_x = gegl_tile_index (tiledx, tile_width);
-        gint      indice_y = gegl_tile_index (tiledy, tile_height);
+        gint      index_x = gegl_tile_index (tiledx, tile_width);
+        gint      index_y = gegl_tile_index (tiledy, tile_height);
         GeglTile *tile     = NULL;
 
         if (buffer->hot_tile &&
-            buffer->hot_tile->x == indice_x &&
-            buffer->hot_tile->y == indice_y)
+            buffer->hot_tile->x == index_x &&
+            buffer->hot_tile->y == index_y)
           {
             tile = buffer->hot_tile;
           }
@@ -192,8 +192,8 @@ gegl_buffer_set_pixel (GeglBuffer *buffer,
                 buffer->hot_tile = NULL;
               }
             tile = gegl_tile_source_get_tile ((GeglTileSource *) (buffer),
-                                             indice_x, indice_y,
-                                             0);
+                                              index_x, index_y,
+                                              0);
           }
 
         if (tile)
@@ -315,13 +315,13 @@ gegl_buffer_get_pixel (GeglBuffer *buffer,
       }
     else
       {
-        gint      indice_x = gegl_tile_index (tiledx, tile_width);
-        gint      indice_y = gegl_tile_index (tiledy, tile_height);
+        gint      index_x = gegl_tile_index (tiledx, tile_width);
+        gint      index_y = gegl_tile_index (tiledy, tile_height);
         GeglTile *tile     = NULL;
 
         if (buffer->hot_tile &&
-            buffer->hot_tile->x == indice_x &&
-            buffer->hot_tile->y == indice_y)
+            buffer->hot_tile->x == index_x &&
+            buffer->hot_tile->y == index_y)
           {
             tile = buffer->hot_tile;
           }
@@ -333,8 +333,8 @@ gegl_buffer_get_pixel (GeglBuffer *buffer,
                 buffer->hot_tile = NULL;
               }
             tile = gegl_tile_source_get_tile ((GeglTileSource *) (buffer),
-                                           indice_x, indice_y,
-                                           0);
+                                              index_x, index_y,
+                                              0);
           }
 
         if (tile)
@@ -822,8 +822,8 @@ gegl_buffer_gpu_iterate (GeglBuffer          *buffer,
          tile_offset_y     = 0,
          texture_y        += copy_area_height,
          copy_area_height  = tile_index_y < last_tile_index_y
-                              ? tile_height
-                              : last_tile_offset_y)
+                             ? tile_height
+                             : last_tile_offset_y)
     {
       for (tile_index_x       = first_tile_index_x,
              tile_offset_x    = first_tile_offset_x,
@@ -861,12 +861,14 @@ gegl_buffer_gpu_iterate (GeglBuffer          *buffer,
                                           };
 
               gegl_tile_lock (tile, GEGL_TILE_LOCK_GPU_WRITE);
+
               dest = gegl_tile_get_gpu_data (tile);
               gegl_gpu_texture_copy (texture,
                                      &temp_rect,
                                      dest,
                                      tile_offset_x,
                                      tile_offset_y);
+
               gegl_tile_unlock (tile);
             }
           else
@@ -880,12 +882,14 @@ gegl_buffer_gpu_iterate (GeglBuffer          *buffer,
                                           };
 
               gegl_tile_lock (tile, GEGL_TILE_LOCK_GPU_READ);
+
               src = gegl_tile_get_gpu_data (tile);
               gegl_gpu_texture_copy (src,
                                      &temp_rect,
                                      texture,
                                      texture_x,
                                      texture_y);
+
               gegl_tile_unlock (tile);
             }
         }
