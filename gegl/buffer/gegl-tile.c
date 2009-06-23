@@ -321,30 +321,30 @@ gegl_tile_lock (GeglTile *tile, GeglTileLockMode lock_mode)
 {
   if (tile->write_locks > 0)
     {
-      if (lock_mode & ~GEGL_TILE_LOCK_WRITE
-          || lock_mode & ~GEGL_TILE_LOCK_GPU_WRITE)
+      if (lock_mode & GEGL_TILE_LOCK_WRITE
+          || lock_mode & GEGL_TILE_LOCK_GPU_WRITE)
         {
           g_print ("hm\n");
           g_warning ("strange tile write-lock count: %i", tile->write_locks);
         }
 
-      if (lock_mode & ~GEGL_TILE_LOCK_READ
-          || lock_mode & ~GEGL_TILE_LOCK_GPU_READ)
+      if (lock_mode & GEGL_TILE_LOCK_READ
+          || lock_mode & GEGL_TILE_LOCK_GPU_READ)
         g_warning ("shouldn't lock for reading while write-lock (%i) is active",
                    tile->write_locks);
     }
 
   if (tile->read_locks > 0)
     {
-      if (lock_mode & ~GEGL_TILE_LOCK_READ
-          || lock_mode & ~GEGL_TILE_LOCK_GPU_READ)
+      if (lock_mode & GEGL_TILE_LOCK_READ
+          || lock_mode & GEGL_TILE_LOCK_GPU_READ)
         {
           g_print ("hm\n");
           g_warning ("strange tile read-lock count: %i", tile->read_locks);
         }
 
-      if (lock_mode & ~GEGL_TILE_LOCK_WRITE
-          || lock_mode & ~GEGL_TILE_LOCK_GPU_WRITE)
+      if (lock_mode & GEGL_TILE_LOCK_WRITE
+          || lock_mode & GEGL_TILE_LOCK_GPU_WRITE)
         g_warning ("shouldn't lock for writing while read-lock (%i) is active",
                    tile->read_locks);
     }
@@ -353,15 +353,15 @@ gegl_tile_lock (GeglTile *tile, GeglTileLockMode lock_mode)
     g_static_mutex_lock (tile->mutex);
 #endif
 
-  if (lock_mode & ~GEGL_TILE_LOCK_READ
-      || lock_mode & ~GEGL_TILE_LOCK_GPU_READ)
+  if (lock_mode & GEGL_TILE_LOCK_READ
+      || lock_mode & GEGL_TILE_LOCK_GPU_READ)
     {
       tile->read_locks++;
       total_read_locks++;
     }
 
-  if (lock_mode & ~GEGL_TILE_LOCK_WRITE
-      || lock_mode & ~GEGL_TILE_LOCK_GPU_WRITE)
+  if (lock_mode & GEGL_TILE_LOCK_WRITE
+      || lock_mode & GEGL_TILE_LOCK_GPU_WRITE)
     {
       tile->write_locks++;
       total_write_locks++;
@@ -371,7 +371,7 @@ gegl_tile_lock (GeglTile *tile, GeglTileLockMode lock_mode)
       /*gegl_buffer_add_dirty (tile->buffer, tile->x, tile->y);*/
     }
 
-  if (lock_mode & ~GEGL_TILE_LOCK_GPU_READ && tile->rev > tile->gpu_rev)
+  if (lock_mode & GEGL_TILE_LOCK_GPU_READ && tile->rev > tile->gpu_rev)
     {
       gegl_gpu_texture_set (tile->gpu_data, NULL, tile->data,
                             gegl_tile_get_format (tile));
@@ -379,7 +379,7 @@ gegl_tile_lock (GeglTile *tile, GeglTileLockMode lock_mode)
       tile->gpu_rev = tile->rev;
     }
 
-  if (lock_mode & ~GEGL_TILE_LOCK_READ && tile->gpu_rev > tile->rev)
+  if (lock_mode & GEGL_TILE_LOCK_READ && tile->gpu_rev > tile->rev)
     {
       gegl_gpu_texture_get (tile->gpu_data, NULL, tile->data,
                             gegl_tile_get_format (tile));
@@ -419,8 +419,8 @@ gegl_tile_void_pyramid (GeglTile *tile)
 void
 gegl_tile_unlock (GeglTile *tile)
 {
-  if (tile->lock_mode & ~GEGL_TILE_LOCK_WRITE
-      || tile->lock_mode & ~GEGL_TILE_LOCK_GPU_WRITE)
+  if (tile->lock_mode & GEGL_TILE_LOCK_WRITE
+      || tile->lock_mode & GEGL_TILE_LOCK_GPU_WRITE)
     {
       total_write_unlocks++;
 
@@ -433,10 +433,10 @@ gegl_tile_unlock (GeglTile *tile)
           guint rev     = tile->rev;
           guint gpu_rev = tile->gpu_rev;
 
-          if (tile->lock_mode & ~GEGL_TILE_LOCK_GPU_WRITE)
+          if (tile->lock_mode & GEGL_TILE_LOCK_GPU_WRITE)
             tile->gpu_rev = MAX (gpu_rev, rev) + 1;
 
-          if (tile->lock_mode & ~GEGL_TILE_LOCK_WRITE)
+          if (tile->lock_mode & GEGL_TILE_LOCK_WRITE)
             tile->rev = MAX (rev, gpu_rev) + 1;
 
           /* TODO: examine how this can be improved with h/w mipmaps */
@@ -445,8 +445,8 @@ gegl_tile_unlock (GeglTile *tile)
         }
     }
 
-  if (tile->lock_mode & ~GEGL_TILE_LOCK_READ
-      || tile->lock_mode & ~GEGL_TILE_LOCK_GPU_READ)
+  if (tile->lock_mode & GEGL_TILE_LOCK_READ
+      || tile->lock_mode & GEGL_TILE_LOCK_GPU_READ)
     {
       total_read_unlocks++;
 
