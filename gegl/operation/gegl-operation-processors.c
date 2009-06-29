@@ -221,6 +221,67 @@ gegl_class_register_alternate_vfunc (GObjectClass *cclass,
     }
 }
 
+GCallback
+gegl_operation_class_get_gpu_processor (GeglOperationClass *cclass)
+{
+  gint cnt;
+
+  VFuncData *data;
+
+  gint reference = 0;
+  gint fast      = 0;
+  gint good      = 0;
+  gint best      = 0;
+
+  gint choice;
+
+  data = g_type_get_qdata (G_TYPE_FROM_CLASS (cclass),
+                           g_quark_from_string ("gpu-dispatch-data"));
+
+  if (data == NULL)
+    return NULL;
+  else if (gegl_config()->quality == data->cached_quality)
+    return data->callback[data->cached];
+
+  for (cnt = 0; cnt < MAX_PROCESSOR; cnt++)
+    {
+      const gchar *string = data->string[cnt];
+      GCallback cb = data->callback[cnt];
+
+      if (string && cb != NULL)
+        {
+          if (g_str_equal (string, "gpu:best"))
+            best = cnt;
+          else if (g_str_equal (string, "gpu:good"))
+            good = cnt;
+          else if (g_str_equal (string, "gpu:fast"))
+            fast = cnt;
+          else if (g_str_equal (string, "gpu:reference"))
+            reference = cnt;
+        }
+    }
+
+  g_assert (data->callback[reference]);
+  choice = reference;
+
+  if (gegl_config()->quality <= 1.0  && best)
+    choice = best;
+  if (gegl_config()->quality <= 0.75 && good)
+    choice = good;
+  if (gegl_config()->quality <= 0.25 && fast)
+    choice = fast;
+
+  GEGL_NOTE (GEGL_DEBUG_PROCESSOR,
+             "Using %s implementation for %s",
+             data->string[choice],
+             g_type_name (G_TYPE_FROM_CLASS (cclass)));
+
+  data->cached = choice;
+  data->cached_quality = gegl_config()->quality;
+
+  return data->callback[data->cached];
+}
+
 void
 gegl_operation_class_add_processor (GeglOperationClass *cclass,
                                     GCallback           process,

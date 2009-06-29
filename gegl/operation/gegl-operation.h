@@ -64,9 +64,11 @@ struct _GeglOperation
 
 #define MAX_PROCESSOR 4
 
-void gegl_operation_class_add_processor (GeglOperationClass *cclass,
-                                         GCallback           process,
-                                         const gchar        *string);
+void      gegl_operation_class_add_processor     (GeglOperationClass *cclass,
+                                                  GCallback           process,
+                                                  const gchar        *string);
+
+GCallback gegl_operation_class_get_gpu_processor (GeglOperationClass *cclass);
 
 struct _GeglOperationClass
 {
