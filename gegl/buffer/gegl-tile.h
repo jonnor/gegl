@@ -34,18 +34,21 @@
 typedef enum
 {
   GEGL_TILE_LOCK_NONE,
-  GEGL_TILE_LOCK_READ          = 1,
+  GEGL_TILE_LOCK_READ          =  1,
   GEGL_TILE_LOCK_WRITE         = (1 << 1),
-  GEGL_TILE_LOCK_GPU_READ      = (1 << 2),
-  GEGL_TILE_LOCK_GPU_WRITE     = (1 << 3),
   GEGL_TILE_LOCK_READWRITE     = GEGL_TILE_LOCK_READ
                                  | GEGL_TILE_LOCK_WRITE,
+
+  GEGL_TILE_LOCK_GPU_READ      = (1 << 2),
+  GEGL_TILE_LOCK_GPU_WRITE     = (1 << 3),
   GEGL_TILE_LOCK_GPU_READWRITE = GEGL_TILE_LOCK_GPU_READ
                                  | GEGL_TILE_LOCK_GPU_WRITE,
+
   GEGL_TILE_LOCK_ALL_READ      = GEGL_TILE_LOCK_READ
                                  | GEGL_TILE_LOCK_GPU_READ,
   GEGL_TILE_LOCK_ALL_WRITE     = GEGL_TILE_LOCK_WRITE
                                  | GEGL_TILE_LOCK_GPU_WRITE,
+
   GEGL_TILE_LOCK_ALL           = GEGL_TILE_LOCK_ALL_READ
                                  | GEGL_TILE_LOCK_ALL_WRITE
 } GeglTileLockMode;
