@@ -148,51 +148,73 @@ gegl_class_register_alternate_vfunc (GObjectClass *cclass,
                                      GCallback     callback,
                                      const gchar  *string)
 {
-  gint i;
+  gint cnt;
+
   GCallback *vfunc_ptr = vfunc_ptr2;
-  GType      type        = G_TYPE_FROM_CLASS (cclass);
-  gchar      tag[20];
+  GType      type      = G_TYPE_FROM_CLASS (cclass);
+
   GQuark     quark;
   VFuncData *data;
 
-  g_sprintf (tag, "%p", vfunc_ptr);
-  quark = g_quark_from_string (tag);
-  data = g_type_get_qdata (type, quark);
-  if (!data)
+  if (g_str_has_prefix (string, "gpu"))
     {
-      data = g_new0 (VFuncData, 1);
-      data->cached_quality = -1.0;
-      g_type_set_qdata (type, quark, data);
-      g_type_set_qdata (type, g_quark_from_string("dispatch-data"), data);
+      quark = g_quark_from_string ("gpu-dispatch-data");
+      data = g_type_get_qdata (type, quark);
+
+      if (data == NULL)
+        {
+          data = g_new0 (VFuncData, 1);
+          data->cached_quality = -1.0;
+          g_type_set_qdata (type, quark, data);
+        }
+
+      cnt = 0;
+    }
+  else
+    {
+      gchar tag[20];
+
+      g_sprintf (tag, "%p", vfunc_ptr);
+      quark = g_quark_from_string (tag);
+      data = g_type_get_qdata (type, quark);
+      if (!data)
+        {
+          data = g_new0 (VFuncData, 1);
+          data->cached_quality = -1.0;
+          g_type_set_qdata (type, quark, data);
+          g_type_set_qdata (type, g_quark_from_string("dispatch-data"), data);
+        }
+
+      /* Store the default implementation */
+      if (data->callback[0]==NULL)
+        {
+          if (*vfunc_ptr == NULL)
+            g_error ("%s: No existing default () vfunc defined for %s",
+                     G_STRFUNC, g_type_name (type));
+          data->callback[0]=*vfunc_ptr;
+          data->string[0]=g_strdup ("reference");
+        }
+
+      *vfunc_ptr = (void*)dispatch; /* make our bootstrap replacement for the
+                                     * reference implementation take over
+                                     * dispatching of arguments, not sure if
+                                     * this is portable C or not.
+                                     */
+      cnt = 1;
     }
 
-  /* Store the default implementation */
-  if (data->callback[0]==NULL)
-    {
-      if (*vfunc_ptr == NULL)
-        g_error ("%s: No existing default () vfunc defined for %s",
-                 G_STRFUNC, g_type_name (type));
-      data->callback[0]=*vfunc_ptr;
-      data->string[0]=g_strdup ("reference");
-    }
-  *vfunc_ptr = (void*)dispatch; /* make our bootstrap replacement for the
-                                 * reference implementation take over
-                                 * dispatching of arguments, not sure if
-                                 * this is portable C or not.
-                                 */
-  
   /* Find a free slot for this one */
-  for (i=1; i<MAX_PROCESSOR; i++)
+  for (; cnt < MAX_PROCESSOR; cnt++)
     {
-      if (data->callback[i]==NULL)
+      if (data->callback[cnt]==NULL)
         {
           /* store the callback and it's given name */
-          data->callback[i]=callback;
-          data->string[i]=g_strdup (string);
+          data->callback[cnt]=callback;
+          data->string[cnt]=g_strdup (string);
           break;
         }
     }
-  if (i>=MAX_PROCESSOR)
+  if (cnt>=MAX_PROCESSOR)
     {
       g_warning ("Too many callbacks added to %s",
                  g_type_name (G_TYPE_FROM_CLASS (cclass)));
