@@ -35,48 +35,48 @@
 
 typedef struct _GeglBufferTileIterator
 {
-  GeglBuffer    *buffer;
-  GeglRectangle  roi;     /* the rectangular region we're iterating over */
-  GeglTile      *tile;    /* current tile */
-  gpointer       data;    /* current tile's data */
+  GeglBuffer   *buffer;
+  GeglRectangle roi;      /* the rectangular region we're iterating over */
+  GeglTile     *tile;     /* current tile */
+  gpointer      data;     /* current tile's data */
 
-  gint           col;     /* the column currently provided for */
-  gint           row;     /* the row currently provided for */
-  gboolean       write;
-  GeglRectangle  subrect;    /* the subrect that intersected roi */
-  gpointer       sub_data;   /* pointer to the subdata as indicated by subrect */
+  gint          col;      /* the column currently provided for */
+  gint          row;      /* the row currently provided for */
+  gboolean      write;
+  GeglRectangle subrect;  /* the subrect that intersected roi */
+  gpointer      sub_data; /* pointer to the subdata as indicated by subrect */
 
-  gint           next_col; /* used internally */
-  gint           next_row; /* used internally */
-  gint           max_size; /* maximum data buffer needed, in bytes */
-  GeglRectangle  roi2;     /* the rectangular subregion of data
-                            * in the buffer represented by this scan.
-                            */
+  gint          next_col; /* used internally */
+  gint          next_row; /* used internally */
+  gint          max_size; /* maximum data buffer needed, in bytes */
+  GeglRectangle roi2;     /* the rectangular subregion of data
+                           * in the buffer represented by this scan.
+                           */
 } _GeglBufferTileIterator;
 
-#define GEGL_BUFFER_SCAN_COMPATIBLE   128   /* should be integrated into enum */
-#define GEGL_BUFFER_FORMAT_COMPATIBLE 256   /* should be integrated into enum */
+#define GEGL_BUFFER_SCAN_COMPATIBLE   128 /* should be integrated into enum */
+#define GEGL_BUFFER_FORMAT_COMPATIBLE 256 /* should be integrated into enum */
 
 #define DEBUG_DIRECT 0
 
 typedef struct _GeglBufferIterator
 {
   /* current region of interest */
-  gint          length;             /* length of current data in pixels */
-  gpointer      data[GEGL_BUFFER_MAX_ITERABLES]; 
-  GeglRectangle roi [GEGL_BUFFER_MAX_ITERABLES];                 
+  gint            length; /* length of current data in pixels */
+  gpointer        data    [GEGL_BUFFER_MAX_ITERABLES];
+  GeglGpuTexture *gpu_data[GEGL_BUFFER_MAX_ITERABLES];
+  GeglRectangle   roi     [GEGL_BUFFER_MAX_ITERABLES];
 
-  /* the following is private: */
-  gint           iterators;
-  gint           iteration_no;
-  GeglRectangle  rect       [GEGL_BUFFER_MAX_ITERABLES];
-  const Babl    *format     [GEGL_BUFFER_MAX_ITERABLES];
-  GeglBuffer    *buffer     [GEGL_BUFFER_MAX_ITERABLES];
-  guint          flags      [GEGL_BUFFER_MAX_ITERABLES];
-  gpointer       buf        [GEGL_BUFFER_MAX_ITERABLES]; 
-  _GeglBufferTileIterator  i[GEGL_BUFFER_MAX_ITERABLES]; 
+  /* the following is private */
+  gint                    iterators;
+  gint                    iteration_no;
+  GeglRectangle           rect  [GEGL_BUFFER_MAX_ITERABLES];
+  const Babl             *format[GEGL_BUFFER_MAX_ITERABLES];
+  GeglBuffer             *buffer[GEGL_BUFFER_MAX_ITERABLES];
+  guint                   flags [GEGL_BUFFER_MAX_ITERABLES];
+  gpointer                buf   [GEGL_BUFFER_MAX_ITERABLES]; 
+  _GeglBufferTileIterator i     [GEGL_BUFFER_MAX_ITERABLES]; 
 } _GeglBufferIterator;
-
 
 static void      gegl_buffer_tile_iterator_init (_GeglBufferTileIterator *i,
                                                  GeglBuffer              *buffer,

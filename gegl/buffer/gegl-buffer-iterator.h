@@ -21,27 +21,38 @@
 #define __GEGL_BUFFER_ITERATOR_H__
 
 #include "gegl-buffer.h"
+#include "gegl-gpu-types.h"
 
 #define GEGL_BUFFER_MAX_ITERABLES 6
 
-#define GEGL_BUFFER_READ      1
-#define GEGL_BUFFER_WRITE     2
-#define GEGL_BUFFER_READWRITE (GEGL_BUFFER_READ|GEGL_BUFFER_WRITE)
+#define GEGL_BUFFER_READ           1
+#define GEGL_BUFFER_WRITE         (1 << 1)
+#define GEGL_BUFFER_READWRITE     (GEGL_BUFFER_READ | GEGL_BUFFER_WRITE)
+#define GEGL_BUFFER_GPU_READ      (1 << 2)
+#define GEGL_BUFFER_GPU_WRITE     (1 << 3)
+#define GEGL_BUFFER_GPU_READWRITE (GEGL_BUFFER_GPU_READ | GEGL_BUFFER_GPU_WRITE)
+#define GEGL_BUFFER_ALL_READ      (GEGL_BUFFER_READ | GEGL_BUFFER_GPU_READ)
+#define GEGL_BUFFER_ALL_WRITE     (GEGL_BUFFER_WRITE | GEGL_BUFFER_GPU_WRITE)
+#define GEGL_BUFFER_ALL           (GEGL_BUFFER_READ_ALL | GEGL_BUFFER_WRITE_ALL)
 
 typedef struct GeglBufferIterator
 {
-  gint          length;
-  gpointer      data[GEGL_BUFFER_MAX_ITERABLES];
-  GeglRectangle roi[GEGL_BUFFER_MAX_ITERABLES];
+  gint            length;
+  gpointer        data    [GEGL_BUFFER_MAX_ITERABLES];
+  GeglGpuTexture *gpu_data[GEGL_BUFFER_MAX_ITERABLES];
+  GeglRectangle   roi     [GEGL_BUFFER_MAX_ITERABLES];
 } GeglBufferIterator;
-
 
 /**
  * gegl_buffer_iterator_new:
  * @buffer: a #GeglBuffer
  * @roi: the rectangle to iterate over
- * @format: the format we want to process this buffers data in, pass 0 to use the buffers format.
- * @flags: whether we need reading or writing to this buffer one of GEGL_BUFFER_READ, GEGL_BUFFER_WRITE and GEGL_BUFFER_READWRITE.
+ * @format: the format we want to process this buffers data in, pass 0 to use
+ * the buffers format.
+ * @flags: whether we need reading or writing to this buffer. One of
+ * GEGL_BUFFER_READ, GEGL_BUFFER_WRITE, GEGL_BUFFER_READWRITE,
+ * GEGL_BUFFER_GPU_READ, GEGL_BUFFER_GPU_WRITE, GEGL_BUFFER_GPU_READWRITE,
+ * GEGL_BUFFER_ALL_READ, GEGL_BUFFER_ALL_WRITE and GEGL_BUFFER_ALL.
  *
  * Create a new buffer iterator, this buffer will be iterated through
  * in linear chunks, some chunks might be full tiles the coordinates, see
