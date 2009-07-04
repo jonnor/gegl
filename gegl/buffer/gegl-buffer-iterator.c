@@ -35,23 +35,27 @@
 
 typedef struct _GeglBufferTileIterator
 {
-  GeglBuffer   *buffer;
-  GeglRectangle roi;      /* the rectangular region we're iterating over */
-  GeglTile     *tile;     /* current tile */
-  gpointer      data;     /* current tile's data */
+  GeglBuffer      *buffer;
+  GeglRectangle    roi;       /* the rectangular region we're iterating over */
+  GeglTile        *tile;      /* current tile */
+  gpointer         data;      /* current tile's data */
 
-  gint          col;      /* the column currently provided for */
-  gint          row;      /* the row currently provided for */
-  gboolean      write;
-  GeglRectangle subrect;  /* the subrect that intersected roi */
-  gpointer      sub_data; /* pointer to the subdata as indicated by subrect */
+  GeglTileLockMode lock_mode;
 
-  gint          next_col; /* used internally */
-  gint          next_row; /* used internally */
-  gint          max_size; /* maximum data buffer needed, in bytes */
-  GeglRectangle roi2;     /* the rectangular subregion of data
-                           * in the buffer represented by this scan.
-                           */
+  GeglRectangle    subrect;   /* the subrect that intersected roi */
+  gpointer         sub_data;  /* pointer to the subdata as indicated by
+                               * subrect
+                               */
+  gint             col;       /* the column currently provided for */
+  gint             row;       /* the row currently provided for */
+
+  gboolean         write;
+  gint             next_col;  /* used internally */
+  gint             next_row;  /* used internally */
+  gint             max_size;  /* maximum data buffer needed, in bytes */
+  GeglRectangle    roi2;      /* the rectangular subregion of data in the buffer
+                               * represented by this scan.
+                               */
 } _GeglBufferTileIterator;
 
 #define GEGL_BUFFER_SCAN_COMPATIBLE   128 /* should be integrated into enum */
@@ -70,66 +74,79 @@ typedef struct _GeglBufferIterator
   /* the following is private */
   gint                    iterators;
   gint                    iteration_no;
+  GeglBuffer             *buffer[GEGL_BUFFER_MAX_ITERABLES];
   GeglRectangle           rect  [GEGL_BUFFER_MAX_ITERABLES];
   const Babl             *format[GEGL_BUFFER_MAX_ITERABLES];
-  GeglBuffer             *buffer[GEGL_BUFFER_MAX_ITERABLES];
   guint                   flags [GEGL_BUFFER_MAX_ITERABLES];
   gpointer                buf   [GEGL_BUFFER_MAX_ITERABLES]; 
   _GeglBufferTileIterator i     [GEGL_BUFFER_MAX_ITERABLES]; 
 } _GeglBufferIterator;
 
-static void      gegl_buffer_tile_iterator_init (_GeglBufferTileIterator *i,
-                                                 GeglBuffer              *buffer,
-                                                 GeglRectangle            roi,
-                                                 gboolean                 write);
-static gboolean  gegl_buffer_tile_iterator_next (_GeglBufferTileIterator *i);
+static void
+gegl_buffer_tile_iterator_init (_GeglBufferTileIterator *i,
+                                GeglBuffer              *buffer,
+                                GeglRectangle            roi,
+                                GeglTileLockMode         lock_mode);
+static gboolean
+gegl_buffer_tile_iterator_next (_GeglBufferTileIterator *i);
 
-/*
- *  check whether iterations on two buffers starting from the given coordinates with
- *  the same width and height would be able to run parallell.
+/* checks whether iterations on two buffers starting from the given coordinates
+ * with the same width and height would be able to run in parallel.
  */
-static gboolean gegl_buffer_scan_compatible (GeglBuffer *bufferA,
-                                             gint        xA,
-                                             gint        yA,
-                                             GeglBuffer *bufferB,
-                                             gint        xB,
-                                             gint        yB)
-{ 
-  if (bufferA->tile_storage->tile_width !=
-      bufferB->tile_storage->tile_width)
+static gboolean
+gegl_buffer_scan_compatible (GeglBuffer *buffer1,
+                             gint        x1,
+                             gint        y1,
+                             GeglBuffer *buffer2,
+                             gint        x2,
+                             gint        y2)
+{
+  if (buffer1->tile_storage->tile_width != buffer2->tile_storage->tile_width)
     return FALSE;
-  if (bufferA->tile_storage->tile_height !=
-      bufferB->tile_storage->tile_height)
+
+  if (buffer1->tile_storage->tile_height != buffer2->tile_storage->tile_height)
     return FALSE;
-  if ( (abs((bufferA->shift_x+xA) - (bufferB->shift_x+xB))
-        % bufferA->tile_storage->tile_width) != 0)
+
+  /* essentially equivalent to (pseudo-code):
+   * tile_offset (shift_x1 + x1) == tile_offset (shift_x2 + x2)
+   */
+  if (abs((buffer1->shift_x + x1) - (buffer2->shift_x + x2))
+      % buffer1->tile_storage->tile_width != 0)
     return FALSE;
-  if ( (abs((bufferA->shift_y+yA) - (bufferB->shift_y+yB))
-        % bufferA->tile_storage->tile_height) != 0)
+
+  /* essentially equivalent to (pseudo-code):
+   * tile_offset (shift_y1 + y1) == tile_offset (shift_y2 + y2)
+   */
+  if (abs((buffer1->shift_y + y1) - (buffer2->shift_y + y2))
+      % buffer1->tile_storage->tile_height != 0)
     return FALSE;
+
   return TRUE;
 }
 
-static void gegl_buffer_tile_iterator_init (_GeglBufferTileIterator *i,
-                                            GeglBuffer              *buffer,
-                                            GeglRectangle            roi,
-                                            gboolean                 write)
+static void
+gegl_buffer_tile_iterator_init (_GeglBufferTileIterator *i,
+                                GeglBuffer              *buffer,
+                                GeglRectangle            roi,
+                                GeglTileLockMode         lock_mode)
 {
   g_assert (i);
+
   memset (i, 0, sizeof (_GeglBufferTileIterator));
-  if (roi.width == 0 ||
-      roi.height == 0)
+
+  if (roi.width == 0 || roi.height == 0)
     g_error ("eeek");
-  i->buffer = buffer;
-  i->roi = roi;
-  i->next_row    = 0;
-  i->next_col = 0;
-  i->tile = NULL;
-  i->col = 0;
-  i->row = 0;
-  i->write = write;
-  i->max_size = i->buffer->tile_storage->tile_width *
-                i->buffer->tile_storage->tile_height;
+
+  i->buffer    = buffer;
+  i->roi       = roi;
+  i->tile      = NULL;
+  i->lock_mode = lock_mode;
+  i->col       = 0;
+  i->row       = 0;
+  i->next_row  = 0;
+  i->next_col  = 0;
+  i->max_size  = i->buffer->tile_storage->tile_width
+                 * i->buffer->tile_storage->tile_height;
 }
 
 static gboolean
@@ -232,13 +249,6 @@ gulp:
   return FALSE;
 }
 
-#if DEBUG_DIRECT
-static glong direct_read = 0;
-static glong direct_write = 0;
-static glong in_direct_read = 0;
-static glong in_direct_write = 0;
-#endif
-
 gint
 gegl_buffer_iterator_add (GeglBufferIterator  *iterator,
                           GeglBuffer          *buffer,
@@ -246,56 +256,73 @@ gegl_buffer_iterator_add (GeglBufferIterator  *iterator,
                           const Babl          *format,
                           guint                flags)
 {
-  _GeglBufferIterator *i = (gpointer)iterator;
   gint self = 0;
-  if (i->iterators+1 > GEGL_BUFFER_MAX_ITERABLES)
-    {
-      g_error ("too many iterators (%i)", i->iterators+1);
-    }
 
-  if (i->iterators == 0) /* for sanity, we zero at init */
-    {
-      memset (i, 0, sizeof (_GeglBufferIterator));
-    }
+  _GeglBufferIterator *i         = (gpointer) iterator;
+  GeglTileLockMode     lock_mode = GEGL_TILE_LOCK_NONE;
+
+  if (i->iterators + 1 > GEGL_BUFFER_MAX_ITERABLES)
+    g_error ("too many iterators (%i)", i->iterators + 1);
+
+  /* for sanity, we zero at init */
+  if (i->iterators == 0)
+    memset (i, 0, sizeof (_GeglBufferIterator));
 
   self = i->iterators++;
 
-  if (!roi)
-    roi = self==0?&(buffer->extent):&(i->rect[0]);
-  i->rect[self]=*roi;
+  if (roi == NULL)
+    roi = (self == 0) ? &buffer->extent: &i->rect[0];
 
-  i->buffer[self]=gegl_buffer_create_sub_buffer (buffer, roi);
-  if (format)
-    i->format[self]=format;
-  else
-    i->format[self]=buffer->format;
-  i->flags[self]=flags;
+  i->buffer[self] = gegl_buffer_create_sub_buffer (buffer, roi);
+  i->rect  [self] = *roi;
+  i->format[self] = (format != NULL) ? format : buffer->format;
+  i->flags [self] = flags;
+  i->buf   [self] = NULL;
 
-  if (self==0) /* The first buffer which is always scan aligned */
+  if (flags & GEGL_BUFFER_READ)
+    lock_mode |= GEGL_TILE_LOCK_READ;
+  if (flags & GEGL_BUFFER_WRITE)
+    lock_mode |= GEGL_TILE_LOCK_WRITE;
+  if (flags & GEGL_BUFFER_GPU_READ)
+    lock_mode |= GEGL_TILE_LOCK_GPU_READ;
+  if (flags & GEGL_BUFFER_GPU_WRITE)
+    lock_mode |= GEGL_TILE_LOCK_GPU_WRITE;
+
+  if (self == 0)
     {
+      /* the first buffer is where we base scan alignment on */
       i->flags[self] |= GEGL_BUFFER_SCAN_COMPATIBLE;
-      gegl_buffer_tile_iterator_init (&i->i[self], i->buffer[self], i->rect[self], ((i->flags[self] & GEGL_BUFFER_WRITE) != 0) );
+      gegl_buffer_tile_iterator_init (&i->i[self],
+                                      i->buffer[self],
+                                      i->rect[self],
+                                      lock_mode);
     }
   else
     {
-      /* we make all subsequently added iterators share the width and height of the first one */
-      i->rect[self].width = i->rect[0].width;
+      /* we make all subsequently added iterators share the width and height of
+       * the first one
+       */
+      i->rect[self].width  = i->rect[0].width;
       i->rect[self].height = i->rect[0].height;
 
-      if (gegl_buffer_scan_compatible (i->buffer[0], i->rect[0].x, i->rect[0].y,
-                                       i->buffer[self], i->rect[self].x, i->rect[self].y))
+      if (gegl_buffer_scan_compatible (i->buffer[0],
+                                       i->rect[0].x,
+                                       i->rect[0].y,
+                                       i->buffer[self],
+                                       i->rect[self].x,
+                                       i->rect[self].y))
         {
           i->flags[self] |= GEGL_BUFFER_SCAN_COMPATIBLE;
-          gegl_buffer_tile_iterator_init (&i->i[self], i->buffer[self], i->rect[self], ((i->flags[self] & GEGL_BUFFER_WRITE) != 0));
+          gegl_buffer_tile_iterator_init (&i->i[self],
+                                          i->buffer[self],
+                                          i->rect[self],
+                                          lock_mode);
         }
     }
 
-  i->buf[self] = NULL;
-  
   if (i->format[self] == i->buffer[self]->format)
-    {
-      i->flags[self] |= GEGL_BUFFER_FORMAT_COMPATIBLE;
-    }
+    i->flags[self] |= GEGL_BUFFER_FORMAT_COMPATIBLE;
+
   return self;
 }
 
@@ -360,6 +387,13 @@ static void ensure_buf (_GeglBufferIterator *i, gint no)
     i->buf[no] = iterator_buf_pool_get (babl_format_get_bytes_per_pixel (i->format[no]) *
                                         i->i[0].max_size);
 }
+
+#if DEBUG_DIRECT
+static glong direct_read = 0;
+static glong direct_write = 0;
+static glong in_direct_read = 0;
+static glong in_direct_write = 0;
+#endif
 
 gboolean gegl_buffer_iterator_next     (GeglBufferIterator *iterator)
 {
@@ -490,12 +524,13 @@ gboolean gegl_buffer_iterator_next     (GeglBufferIterator *iterator)
   return result;
 }
 
-GeglBufferIterator *gegl_buffer_iterator_new (GeglBuffer          *buffer,
-                                              const GeglRectangle *roi, 
-                                              const Babl          *format,
-                                              guint                flags)
+GeglBufferIterator *
+gegl_buffer_iterator_new (GeglBuffer          *buffer,
+                          const GeglRectangle *roi,
+                          const Babl          *format,
+                          guint                flags)
 {
-  GeglBufferIterator *i = (gpointer)g_new0 (_GeglBufferIterator, 1);
+  GeglBufferIterator *i = (gpointer) g_new0 (_GeglBufferIterator, 1);
   gegl_buffer_iterator_add (i, buffer, roi, format, flags);
   return i;
 }
