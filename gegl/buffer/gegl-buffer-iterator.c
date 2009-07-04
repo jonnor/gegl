@@ -63,18 +63,18 @@ typedef struct _GeglBufferIterator
 {
   /* current region of interest */
   gint          length;             /* length of current data in pixels */
-  gpointer      data[GEGL_BUFFER_MAX_ITERATORS]; 
-  GeglRectangle roi [GEGL_BUFFER_MAX_ITERATORS];                 
+  gpointer      data[GEGL_BUFFER_MAX_ITERABLES]; 
+  GeglRectangle roi [GEGL_BUFFER_MAX_ITERABLES];                 
 
   /* the following is private: */
   gint           iterators;
   gint           iteration_no;
-  GeglRectangle  rect       [GEGL_BUFFER_MAX_ITERATORS];
-  const Babl    *format     [GEGL_BUFFER_MAX_ITERATORS];
-  GeglBuffer    *buffer     [GEGL_BUFFER_MAX_ITERATORS];
-  guint          flags      [GEGL_BUFFER_MAX_ITERATORS];
-  gpointer       buf        [GEGL_BUFFER_MAX_ITERATORS]; 
-  _GeglBufferTileIterator  i[GEGL_BUFFER_MAX_ITERATORS]; 
+  GeglRectangle  rect       [GEGL_BUFFER_MAX_ITERABLES];
+  const Babl    *format     [GEGL_BUFFER_MAX_ITERABLES];
+  GeglBuffer    *buffer     [GEGL_BUFFER_MAX_ITERABLES];
+  guint          flags      [GEGL_BUFFER_MAX_ITERABLES];
+  gpointer       buf        [GEGL_BUFFER_MAX_ITERABLES]; 
+  _GeglBufferTileIterator  i[GEGL_BUFFER_MAX_ITERABLES]; 
 } _GeglBufferIterator;
 
 
@@ -256,7 +256,7 @@ gegl_buffer_iterator_add (GeglBufferIterator  *iterator,
 {
   _GeglBufferIterator *i = (gpointer)iterator;
   gint self = 0;
-  if (i->iterators+1 > GEGL_BUFFER_MAX_ITERATORS)
+  if (i->iterators+1 > GEGL_BUFFER_MAX_ITERABLES)
     {
       g_error ("too many iterators (%i)", i->iterators+1);
     }
