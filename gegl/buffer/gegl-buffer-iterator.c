@@ -151,14 +151,9 @@ gulp:
   /* unref previously held tile */
   if (i->tile)
     {
-      /* XXX: do we still need to handle the first condition below?
-       *
-       * if (i->subrect.width == tile_width && i->write)
-       *   {
-       *     gegl_tile_unlock (i->tile);
-       *   }
-       */
-      gegl_tile_unlock (i->tile);
+      if (tile_width == i->subrect.width)
+        gegl_tile_unlock (i->tile);
+
       g_object_unref (i->tile);
       i->tile = NULL;
     }
@@ -188,26 +183,23 @@ gulp:
                                                gegl_tile_index (tiledy, tile_height),
                                                0);
 
-         /* XXX: do we still need to handle the second condition below?
-          *
-          * if (i->write && tile_width==i->subrect.width)
-          */
-         if (i->write)
-           gegl_tile_lock (i->tile, GEGL_TILE_LOCK_WRITE);
-         else
-           gegl_tile_lock (i->tile, GEGL_TILE_LOCK_READ);
+         if (tile_width == i->subrect.width)
+           {
+             if (i->write)
+               gegl_tile_lock (i->tile, GEGL_TILE_LOCK_WRITE);
+             else
+               gegl_tile_lock (i->tile, GEGL_TILE_LOCK_READ);
 
-         i->data = gegl_tile_get_data (i->tile);
-
-         {
-         gint bpp = babl_format_get_bytes_per_pixel (i->buffer->format);
-         i->sub_data = (guchar*)(i->data) + bpp * (i->subrect.y * tile_width + i->subrect.x);
-         }
+             i->data = gegl_tile_get_data (i->tile);
+             {
+               gint bpp = babl_format_get_bytes_per_pixel (i->buffer->format);
+               i->sub_data = (guchar*)(i->data) + bpp * (i->subrect.y * tile_width + i->subrect.x);
+             }
+           }
 
          i->col = i->next_col;
          i->row = i->next_row;
          i->next_col += tile_width - offsetx;
-
 
          i->roi2.x      = i->roi.x + i->col;
          i->roi2.y      = i->roi.y + i->row;
