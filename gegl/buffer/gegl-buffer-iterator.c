@@ -32,7 +32,6 @@
 #include "gegl-tile-storage.h"
 #include "gegl-utils.h"
 
-
 typedef struct _GeglBufferTileIterator
 {
   GeglBuffer      *buffer;
@@ -46,9 +45,6 @@ typedef struct _GeglBufferTileIterator
   gpointer         sub_data;  /* pointer to the subdata as indicated by
                                * subrect
                                */
-  gint             col;       /* the column currently provided for */
-  gint             row;       /* the row currently provided for */
-
   gboolean         write;
   gint             next_col;  /* used internally */
   gint             next_row;  /* used internally */
@@ -141,8 +137,6 @@ gegl_buffer_tile_iterator_init (_GeglBufferTileIterator *i,
   i->roi       = roi;
   i->tile      = NULL;
   i->lock_mode = lock_mode;
-  i->col       = 0;
-  i->row       = 0;
   i->next_row  = 0;
   i->next_col  = 0;
   i->max_size  = i->buffer->tile_storage->tile_width
@@ -214,14 +208,12 @@ gulp:
              }
            }
 
-         i->col = i->next_col;
-         i->row = i->next_row;
-         i->next_col += tile_width - offsetx;
-
-         i->roi2.x      = i->roi.x + i->col;
-         i->roi2.y      = i->roi.y + i->row;
+         i->roi2.x      = i->roi.x + i->next_col;
+         i->roi2.y      = i->roi.y + i->next_row;
          i->roi2.width  = i->subrect.width;
          i->roi2.height = i->subrect.height;
+
+         i->next_col += tile_width - offsetx;
 
          return TRUE;
        }
@@ -230,9 +222,6 @@ gulp:
     {
       gint tiledy;
       gint offsety;
-
-      i->row = i->next_row;
-      i->col = i->next_col;
 
       tiledy = buffer_y + i->next_row;
       offsety = gegl_tile_offset (tiledy, tile_height);
