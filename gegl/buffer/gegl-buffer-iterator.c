@@ -172,6 +172,7 @@ gulp:
       i->tile = NULL;
 
       i->sub_data = NULL;
+      i->gpu_data = NULL;
     }
 
   memset (&i->subrect, 0, sizeof (GeglRectangle));
@@ -290,10 +291,19 @@ gegl_buffer_iterator_add (GeglBufferIterator  *iterator,
     lock_mode |= GEGL_TILE_LOCK_READ;
   if (flags & GEGL_BUFFER_WRITE)
     lock_mode |= GEGL_TILE_LOCK_WRITE;
-  if (flags & GEGL_BUFFER_GPU_READ)
-    lock_mode |= GEGL_TILE_LOCK_GPU_READ;
-  if (flags & GEGL_BUFFER_GPU_WRITE)
-    lock_mode |= GEGL_TILE_LOCK_GPU_WRITE;
+
+  if (gegl_gpu_is_accelerated ())
+    {
+      if (flags & GEGL_BUFFER_GPU_READ)
+        lock_mode |= GEGL_TILE_LOCK_GPU_READ;
+      if (flags & GEGL_BUFFER_GPU_WRITE)
+        lock_mode |= GEGL_TILE_LOCK_GPU_WRITE;
+    }
+  else
+    /* do not allow iteration on GPU data when GPU acceleration
+     * is disabled
+     */
+    flags &= ~GEGL_BUFFER_GPU_READ & ~GEGL_BUFFER_GPU_WRITE;
 
   if (self == 0)
     {
