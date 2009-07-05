@@ -377,14 +377,16 @@ iterator_buf_pool_release (gpointer buf)
 }
 
 typedef struct GpuTextureInfo {
-  gint            used; /* if this buffer is currently allocated */
+  gint            used; /* if this texture is currently allocated */
   GeglGpuTexture *texture;
 } GpuTextureInfo;
 
 static GArray *gpu_texture_pool = NULL;
 
 static GeglGpuTexture *
-iterator_gpu_texture_pool_get (gint width, gint height, const Babl *format)
+iterator_gpu_texture_pool_get (gint width,
+                               gint height,
+                               const Babl *format)
 {
   gint cnt;
 

@@ -38,9 +38,12 @@
 typedef struct GeglBufferIterator
 {
   gint            length;
+
   gpointer        data    [GEGL_BUFFER_MAX_ITERABLES];
   GeglGpuTexture *gpu_data[GEGL_BUFFER_MAX_ITERABLES];
+
   GeglRectangle   roi     [GEGL_BUFFER_MAX_ITERABLES];
+
 } GeglBufferIterator;
 
 /**
@@ -74,13 +77,14 @@ void                gegl_buffer_iterator_free    (GeglBufferIterator  *i);
  * @iterator: a #GeglBufferIterator
  * @buffer: a #GeglBuffer
  * @roi: the rectangle to iterate over
- * @format: the format we want to process this buffers data in, pass 0 to use the buffers format.
+ * @format: the format we want to process this buffers data in, pass 0 to use
+ * the buffers format.
  * @flags: whether we need reading or writing to this buffer.
  *
  * Adds an additional buffer iterable that will be processed in sync with
- * the original one, if the buffer doesn't align with the other for tile access,
- * the corresponding scans and regions will be serialized automatically using
- * gegl_buffer_get.
+ * the original one, if the buffer doesn't align with the other for tile
+ * access, the corresponding scans and regions will be serialized automatically
+ * using gegl_buffer_get.
  *
  * Returns: an integer handle refering to the index in the iterator structure
  * of the added buffer.
