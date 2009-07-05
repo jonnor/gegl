@@ -37,16 +37,19 @@ typedef struct _GeglBufferTileIterator
   GeglBuffer      *buffer;
   GeglRectangle    roi;       /* the rectangular region we're iterating over */
   GeglTile        *tile;      /* current tile */
-  GeglTileLockMode lock_mode;
   gint             max_size;  /* maximum data buffer needed, in bytes */
 
+  GeglTileLockMode lock_mode;
+
   GeglRectangle    subrect;   /* the rectangular subregion of data in the
-                               * buffer represented by this scan.
+                               * buffer represented by this scan
                                */
   gpointer         sub_data;  /* pointer to the data as indicated by subrect */
 
-  gint             next_col;  /* used internally */
-  gint             next_row;  /* used internally */
+  /* used internally */
+  gint             next_col;
+  gint             next_row;
+
 } _GeglBufferTileIterator;
 
 #define GEGL_BUFFER_SCAN_COMPATIBLE   128 /* should be integrated into enum */
@@ -69,8 +72,8 @@ typedef struct _GeglBufferIterator
   GeglRectangle           rect    [GEGL_BUFFER_MAX_ITERABLES];
   const Babl             *format  [GEGL_BUFFER_MAX_ITERABLES];
   guint                   flags   [GEGL_BUFFER_MAX_ITERABLES];
-  gpointer                buf     [GEGL_BUFFER_MAX_ITERABLES]; 
-  _GeglBufferTileIterator i       [GEGL_BUFFER_MAX_ITERABLES]; 
+  gpointer                buf     [GEGL_BUFFER_MAX_ITERABLES];
+  _GeglBufferTileIterator i       [GEGL_BUFFER_MAX_ITERABLES];
 } _GeglBufferIterator;
 
 static void
