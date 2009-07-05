@@ -317,10 +317,6 @@ gegl_buffer_iterator_add (GeglBufferIterator  *iterator,
   return self;
 }
 
-/* FIXME: we are currently leaking this buf pool, it should be
- * freeing it when gegl is uninitialized
- */
-
 /* XXX: keeping a small pool of such buffers around for the used formats
  * would probably improve performance (old note from pippin, kept as a
  * reminder)
@@ -377,8 +373,22 @@ iterator_buf_pool_release (gpointer buf)
           return;
         }
     }
+}
 
-  g_assert (0);
+void
+gegl_buffer_iterator_cleanup (void)
+{
+  gint cnt;
+
+  for (cnt = 0; cnt < buf_pool->len; cnt++)
+    {
+      BufInfo *info = &g_array_index (buf_pool, BufInfo, cnt);
+      gegl_free (info->buf);
+      info->buf = NULL;
+    }
+
+  g_array_free (buf_pool, TRUE);
+  buf_pool = NULL;
 }
 
 #if DEBUG_DIRECT
@@ -430,6 +440,9 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
                                    GEGL_AUTO_ROWSTRIDE);
                 }
 
+              /* XXX: might be inefficient given the current implementation,
+               * should be easy to reimplement the pool as a hash table
+               */
               iterator_buf_pool_release (i->data[no]);
             }
 

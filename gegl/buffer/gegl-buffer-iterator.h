@@ -62,12 +62,12 @@ typedef struct GeglBufferIterator
  * Returns: a new buffer iterator that can be used to iterate through the
  * buffers pixels.
  */
-GeglBufferIterator *gegl_buffer_iterator_new  (GeglBuffer          *buffer,
-                                               const GeglRectangle *roi, 
-                                               const Babl          *format,
-                                               guint                flags);
+GeglBufferIterator *gegl_buffer_iterator_new     (GeglBuffer          *buffer,
+                                                  const GeglRectangle *roi, 
+                                                  const Babl          *format,
+                                                  guint                flags);
 
-void                gegl_buffer_iterator_free (GeglBufferIterator  *iterator);
+void                gegl_buffer_iterator_free    (GeglBufferIterator  *i);
 
 /**
  * gegl_buffer_iterator_add:
@@ -85,11 +85,11 @@ void                gegl_buffer_iterator_free (GeglBufferIterator  *iterator);
  * Returns: an integer handle refering to the index in the iterator structure
  * of the added buffer.
  */
-gint                gegl_buffer_iterator_add  (GeglBufferIterator  *iterator,
-                                               GeglBuffer          *buffer,
-                                               const GeglRectangle *roi, 
-                                               const Babl          *format,
-                                               guint                flags);
+gint                gegl_buffer_iterator_add     (GeglBufferIterator  *iterator,
+                                                  GeglBuffer          *buffer,
+                                                  const GeglRectangle *roi, 
+                                                  const Babl          *format,
+                                                  guint                flags);
 
 /**
  * gegl_buffer_iterator_next:
@@ -103,8 +103,9 @@ gint                gegl_buffer_iterator_add  (GeglBufferIterator  *iterator,
  *
  * Returns: TRUE if there is more work FALSE if iteration is complete.
  */
-gboolean            gegl_buffer_iterator_next (GeglBufferIterator *iterator);
+gboolean            gegl_buffer_iterator_next    (GeglBufferIterator *iterator);
 
+void                gegl_buffer_iterator_cleanup (void);
 
 #ifdef EXAMPLE
   GeglBufferIterator *gi = gegl_buffer_iterator_new (buffer,

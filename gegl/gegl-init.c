@@ -397,6 +397,8 @@ gegl_exit (void)
   config = NULL;
 
   g_printf ("\n");
+
+  gegl_buffer_iterator_cleanup ();
 }
 
 static void swap_clean (void);
