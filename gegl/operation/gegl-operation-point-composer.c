@@ -224,6 +224,8 @@ gegl_operation_point_composer_process (GeglOperation       *operation,
                point_composer_class->process (operation, i->data[read], NULL, i->data[0], i->length, &(i->roi[0]));
             }
         }
+
+      gegl_buffer_iterator_free (i);
       return TRUE;
     }
   return TRUE;

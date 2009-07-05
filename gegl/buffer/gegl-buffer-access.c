@@ -1699,6 +1699,8 @@ gegl_buffer_copy (GeglBuffer          *src,
       read = gegl_buffer_iterator_add (i, src, src_rect, src->format, GEGL_BUFFER_READ);
       while (gegl_buffer_iterator_next (i))
         babl_process (fish, i->data[read], i->data[0], i->length);
+
+      gegl_buffer_iterator_free (i);
     }
 }
 
@@ -1729,6 +1731,7 @@ gegl_buffer_clear (GeglBuffer          *dst,
     {
       memset (((guchar*)(i->data[0])), 0, i->length * pxsize);
     }
+  gegl_buffer_iterator_free (i);
 }
 
 GeglBuffer *

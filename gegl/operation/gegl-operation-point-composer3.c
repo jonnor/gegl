@@ -197,6 +197,8 @@ gegl_operation_point_composer3_process (GeglOperation       *operation,
                 }
             }
         }
+
+      gegl_buffer_iterator_free (i);
       return TRUE;
     }
   return TRUE;

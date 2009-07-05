@@ -82,6 +82,7 @@ gegl_operation_point_filter_process (GeglOperation       *operation,
       while (gegl_buffer_iterator_next (i))
            point_filter_class->process (operation, i->data[read], i->data[0], i->length, &i->roi[0]);
 
+      gegl_buffer_iterator_free (i);
     }
   return TRUE;
 }

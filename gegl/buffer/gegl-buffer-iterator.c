@@ -68,6 +68,7 @@ typedef struct _GeglBufferIterator
   /* the following is private */
   gint                    iterable_count;
   gint                    iteration_no;
+  gboolean                is_done;
 
   GeglBuffer             *buffer  [GEGL_BUFFER_MAX_ITERABLES];
   GeglRectangle           rect    [GEGL_BUFFER_MAX_ITERABLES];
@@ -404,7 +405,7 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
 
   _GeglBufferIterator *i = (gpointer) iterator;
 
-  if (i->buf[0] == (void*) 0xdeadbeef)
+  if (i->is_done)
     g_error ("%s called on finished buffer iterator", G_STRFUNC);
 
   /* first we need to finish off any pending write work */
@@ -523,15 +524,17 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
   if (result == FALSE)
     {
       for (no = 0; no < i->iterable_count; no++)
-        g_object_unref (i->buffer[no]);
+        {
+          g_object_unref (i->buffer[no]);
+          i->buffer[no] = NULL;
+        }
 
 #if DEBUG_DIRECT
       g_print ("%f %f\n",
                100.0 * direct_read / (in_direct_read + direct_read),
                100.0 * direct_write / (in_direct_write + direct_write));
 #endif
-      i->buf[0] = (void*) 0xdeadbeef;
-      g_free (i);
+      i->is_done = TRUE;
     }
 
   return result;
@@ -546,4 +549,26 @@ gegl_buffer_iterator_new (GeglBuffer          *buffer,
   GeglBufferIterator *i = (gpointer) g_new0 (_GeglBufferIterator, 1);
   gegl_buffer_iterator_add (i, buffer, roi, format, flags);
   return i;
+}
+
+void
+gegl_buffer_iterator_free (GeglBufferIterator *iterator)
+{
+  gint cnt;
+
+  _GeglBufferIterator *i = (gpointer) iterator;
+
+  for (cnt = 0; cnt < i->iterable_count; cnt++)
+    {
+      if (i->buffer[cnt] != NULL)
+        {
+          g_object_unref (i->buffer[cnt]);
+          i->buffer[cnt] = NULL;
+        }
+
+      if (i->buf[cnt] != NULL)
+        iterator_buf_pool_release (i->buf[cnt]);
+    }
+
+  g_free (i);
 }

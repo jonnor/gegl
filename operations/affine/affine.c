@@ -709,6 +709,7 @@ affine_generic (GeglBuffer  *dest,
            v_start += inverse [1][1];
         }
     }
+  gegl_buffer_iterator_free (i);
 }
 
 void  gegl_sampler_prepare     (GeglSampler *self);

@@ -268,6 +268,7 @@ static void fill_rect (GeglBuffer          *buffer,
           buf[i]=value;
         }
     }
+  gegl_buffer_iterator_free (gi);
 }
 
 void rectangle (GeglBuffer *buffer,
