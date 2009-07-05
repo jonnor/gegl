@@ -62,20 +62,20 @@ typedef struct _GeglBufferTileIterator
 typedef struct _GeglBufferIterator
 {
   /* current region of interest */
-  gint            length; /* length of current data in pixels */
-  gpointer        data    [GEGL_BUFFER_MAX_ITERABLES];
-  GeglGpuTexture *gpu_data[GEGL_BUFFER_MAX_ITERABLES];
-  GeglRectangle   roi     [GEGL_BUFFER_MAX_ITERABLES];
+  gint                    length; /* length of current data in pixels */
+  gpointer                data    [GEGL_BUFFER_MAX_ITERABLES];
+  GeglGpuTexture         *gpu_data[GEGL_BUFFER_MAX_ITERABLES];
+  GeglRectangle           roi     [GEGL_BUFFER_MAX_ITERABLES];
 
   /* the following is private */
-  gint                    iterators;
+  gint                    iterable_count;
   gint                    iteration_no;
-  GeglBuffer             *buffer[GEGL_BUFFER_MAX_ITERABLES];
-  GeglRectangle           rect  [GEGL_BUFFER_MAX_ITERABLES];
-  const Babl             *format[GEGL_BUFFER_MAX_ITERABLES];
-  guint                   flags [GEGL_BUFFER_MAX_ITERABLES];
-  gpointer                buf   [GEGL_BUFFER_MAX_ITERABLES]; 
-  _GeglBufferTileIterator i     [GEGL_BUFFER_MAX_ITERABLES]; 
+  GeglBuffer             *buffer  [GEGL_BUFFER_MAX_ITERABLES];
+  GeglRectangle           rect    [GEGL_BUFFER_MAX_ITERABLES];
+  const Babl             *format  [GEGL_BUFFER_MAX_ITERABLES];
+  guint                   flags   [GEGL_BUFFER_MAX_ITERABLES];
+  gpointer                buf     [GEGL_BUFFER_MAX_ITERABLES]; 
+  _GeglBufferTileIterator i       [GEGL_BUFFER_MAX_ITERABLES]; 
 } _GeglBufferIterator;
 
 static void
@@ -250,14 +250,14 @@ gegl_buffer_iterator_add (GeglBufferIterator  *iterator,
   _GeglBufferIterator *i         = (gpointer) iterator;
   GeglTileLockMode     lock_mode = GEGL_TILE_LOCK_NONE;
 
-  if (i->iterators + 1 > GEGL_BUFFER_MAX_ITERABLES)
-    g_error ("too many iterators (%i)", i->iterators + 1);
+  if (i->iterable_count + 1 > GEGL_BUFFER_MAX_ITERABLES)
+    g_error ("too many iterables (%i)", i->iterable_count + 1);
 
   /* for sanity, we zero at init */
-  if (i->iterators == 0)
+  if (i->iterable_count == 0)
     memset (i, 0, sizeof (_GeglBufferIterator));
 
-  self = i->iterators++;
+  self = i->iterable_count++;
 
   if (roi == NULL)
     roi = (self == 0) ? &buffer->extent: &i->rect[0];
@@ -288,7 +288,7 @@ gegl_buffer_iterator_add (GeglBufferIterator  *iterator,
     }
   else
     {
-      /* we make all subsequently added iterators share the width and height of
+      /* we make all subsequently added iterables share the width and height of
        * the first one
        */
       i->rect[self].width  = i->rect[0].width;
@@ -395,7 +395,7 @@ gboolean gegl_buffer_iterator_next     (GeglBufferIterator *iterator)
     g_error ("%s called on finished buffer iterator", G_STRFUNC);
   if (i->iteration_no > 0)
     {
-      for (no=0; no<i->iterators;no++)
+      for (no=0; no<i->iterable_count;no++)
         {
           if (i->flags[no] & GEGL_BUFFER_WRITE)
             {
@@ -423,10 +423,10 @@ gboolean gegl_buffer_iterator_next     (GeglBufferIterator *iterator)
         }
     }
 
-  g_assert (i->iterators > 0);
+  g_assert (i->iterable_count > 0);
 
   /* then we iterate all */
-  for (no=0; no<i->iterators;no++)
+  for (no=0; no<i->iterable_count;no++)
     {
       if (i->flags[no] & GEGL_BUFFER_SCAN_COMPATIBLE)
         {
@@ -496,7 +496,7 @@ gboolean gegl_buffer_iterator_next     (GeglBufferIterator *iterator)
 
   if (result == FALSE)
     {
-      for (no=0; no<i->iterators;no++)
+      for (no=0; no<i->iterable_count;no++)
         {
           if (i->buf[no])
             iterator_buf_pool_release (i->buf[no]);
