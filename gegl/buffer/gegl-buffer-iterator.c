@@ -34,6 +34,7 @@
 
 #include "gegl-gpu-types.h"
 #include "gegl-gpu-texture.h"
+#include "gegl-gpu-init.h"
 
 typedef struct _GeglBufferTileIterator
 {

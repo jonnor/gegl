@@ -32,6 +32,9 @@
 #include "gegl-buffer-private.h"
 #include "gegl-tile-storage.h"
 
+#include "gegl-gpu-types.h"
+#include "gegl-gpu-init.h"
+
 static gboolean gegl_operation_point_filter_process
                               (GeglOperation       *operation,
                                GeglBuffer          *input,
@@ -62,7 +65,6 @@ gegl_operation_point_filter_init (GeglOperationPointFilter *self)
 {
 }
 
-
 static gboolean
 gegl_operation_point_filter_process (GeglOperation       *operation,
                                      GeglBuffer          *input,
@@ -71,18 +73,57 @@ gegl_operation_point_filter_process (GeglOperation       *operation,
 {
   const Babl *in_format  = gegl_operation_get_format (operation, "input");
   const Babl *out_format = gegl_operation_get_format (operation, "output");
+
+  GeglOperationClass            *operation_class;
   GeglOperationPointFilterClass *point_filter_class;
 
+  operation_class    = GEGL_OPERATION_GET_CLASS (operation);
   point_filter_class = GEGL_OPERATION_POINT_FILTER_GET_CLASS (operation);
 
-  if ((result->width > 0) && (result->height > 0))
+  if (result->width > 0 && result->height > 0)
     {
-      GeglBufferIterator *i = gegl_buffer_iterator_new (output, result, out_format, GEGL_BUFFER_WRITE);
-      gint read  = gegl_buffer_iterator_add (i, input,  result, in_format, GEGL_BUFFER_READ);
-      while (gegl_buffer_iterator_next (i))
-           point_filter_class->process (operation, i->data[read], i->data[0], i->length, &i->roi[0]);
+      GeglOperationPointFilterGpuProcessor gpu_process
+        = (gpointer) gegl_operation_class_get_gpu_processor (operation_class);
+
+      gboolean use_gpu = (gegl_gpu_is_accelerated () && gpu_process != NULL);
+
+      GeglBufferIterator *i = gegl_buffer_iterator_new (
+                                output,
+                                result,
+                                out_format,
+                                use_gpu
+                                  ? GEGL_BUFFER_GPU_WRITE
+                                  : GEGL_BUFFER_WRITE);
+
+      gint read  = gegl_buffer_iterator_add (i,
+                                             input,
+                                             result,
+                                             in_format,
+                                             use_gpu
+                                               ? GEGL_BUFFER_GPU_READ
+                                               : GEGL_BUFFER_READ);
+
+      if (use_gpu)
+        {
+          while (gegl_buffer_iterator_next (i))
+            gpu_process (operation,
+                         i->gpu_data[read],
+                         i->gpu_data[0],
+                         i->length,
+                         &i->roi[0]);
+        }
+      else
+        {
+          while (gegl_buffer_iterator_next (i))
+            point_filter_class->process (operation,
+                                         i->data[read],
+                                         i->data[0],
+                                         i->length,
+                                         &i->roi[0]);
+        }
 
       gegl_buffer_iterator_free (i);
     }
+
   return TRUE;
 }

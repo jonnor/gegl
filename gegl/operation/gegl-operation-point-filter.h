@@ -53,6 +53,13 @@ struct _GeglOperationPointFilterClass
 
 GType gegl_operation_point_filter_get_type (void) G_GNUC_CONST;
 
+typedef gboolean
+(* GeglOperationPointFilterGpuProcessor) (GeglOperation       *self,
+                                          GeglGpuTexture      *in_texture,
+                                          GeglGpuTexture      *out_texture,
+                                          glong                samples,
+                                          const GeglRectangle *roi);
+
 G_END_DECLS
 
 #endif
