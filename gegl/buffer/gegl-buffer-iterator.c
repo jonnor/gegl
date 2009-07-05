@@ -32,6 +32,9 @@
 #include "gegl-tile-storage.h"
 #include "gegl-utils.h"
 
+#include "gegl-gpu-types.h"
+#include "gegl-gpu-texture.h"
+
 typedef struct _GeglBufferTileIterator
 {
   GeglBuffer      *buffer;
@@ -324,7 +327,7 @@ gegl_buffer_iterator_add (GeglBufferIterator  *iterator,
 
 typedef struct BufInfo {
   gint     size;
-  gint     used;  /* if this buffer is currently allocated */
+  gint     used; /* if this buffer is currently allocated */
   gpointer buf;
 } BufInfo;
 
@@ -333,14 +336,15 @@ static GArray *buf_pool = NULL;
 static gpointer
 iterator_buf_pool_get (gint size)
 {
-  gint i;
+  gint cnt;
 
   if (G_UNLIKELY (!buf_pool))
     buf_pool = g_array_new (TRUE, TRUE, sizeof (BufInfo));
 
-  for (i = 0; i < buf_pool->len; i++)
+  for (cnt = 0; cnt < buf_pool->len; cnt++)
     {
-      BufInfo *info = &g_array_index (buf_pool, BufInfo, i);
+      BufInfo *info = &g_array_index (buf_pool, BufInfo, cnt);
+
       if (info->size >= size && info->used == 0)
         {
           info->used++;
@@ -361,17 +365,69 @@ iterator_buf_pool_get (gint size)
 static void
 iterator_buf_pool_release (gpointer buf)
 {
-  gint i;
+  gint cnt;
 
-  for (i = 0; i < buf_pool->len; i++)
+  for (cnt = 0; cnt < buf_pool->len; cnt++)
     {
-      BufInfo *info = &g_array_index (buf_pool, BufInfo, i);
+      BufInfo *info = &g_array_index (buf_pool, BufInfo, cnt);
 
       if (info->buf == buf)
+        info->used--;
+    }
+}
+
+typedef struct GpuTextureInfo {
+  gint            used; /* if this buffer is currently allocated */
+  GeglGpuTexture *texture;
+} GpuTextureInfo;
+
+static GArray *gpu_texture_pool = NULL;
+
+static GeglGpuTexture *
+iterator_gpu_texture_pool_get (gint width, gint height, const Babl *format)
+{
+  gint cnt;
+
+  if (G_UNLIKELY (!gpu_texture_pool))
+    gpu_texture_pool = g_array_new (TRUE, TRUE, sizeof (BufInfo));
+
+  for (cnt = 0; cnt < gpu_texture_pool->len; cnt++)
+    {
+      GpuTextureInfo *info = &g_array_index (gpu_texture_pool,
+                                             GpuTextureInfo,
+                                             cnt);
+
+      if (info->texture->width == width
+          && info->texture->height == height
+          && info->texture->format == format
+          && info->used == 0)
         {
-          info->used--;
-          return;
+          info->used++;
+          return info->texture;
         }
+    }
+    {
+      GpuTextureInfo info = {0, NULL};
+      info.texture  = gegl_gpu_texture_new (width, height, format);
+
+      g_array_append_val (gpu_texture_pool, info);
+      return info.texture;
+    }
+}
+
+static void
+iterator_gpu_texture_pool_release (GeglGpuTexture *texture)
+{
+  gint cnt;
+
+  for (cnt = 0; cnt < gpu_texture_pool->len; cnt++)
+    {
+      GpuTextureInfo *info = &g_array_index (gpu_texture_pool,
+                                             GpuTextureInfo,
+                                             cnt);
+
+      if (info->texture == texture)
+        info->used--;
     }
 }
 
@@ -389,6 +445,19 @@ gegl_buffer_iterator_cleanup (void)
 
   g_array_free (buf_pool, TRUE);
   buf_pool = NULL;
+
+  for (cnt = 0; cnt < gpu_texture_pool->len; cnt++)
+    {
+      GpuTextureInfo *info = &g_array_index (gpu_texture_pool,
+                                             GpuTextureInfo,
+                                             cnt);
+
+      gegl_gpu_texture_free (info->texture);
+      info->texture = NULL;
+    }
+
+  g_array_free (gpu_texture_pool, TRUE);
+  gpu_texture_pool = NULL;
 }
 
 #if DEBUG_DIRECT
@@ -441,7 +510,8 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
                 }
 
               /* XXX: might be inefficient given the current implementation,
-               * should be easy to reimplement the pool as a hash table
+               * it should be easy to reimplement the pool as a hash table
+               * though
                */
               iterator_buf_pool_release (i->data[no]);
             }
