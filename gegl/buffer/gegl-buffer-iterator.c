@@ -74,7 +74,6 @@ typedef struct _GeglBufferIterator
   GeglRectangle           rect    [GEGL_BUFFER_MAX_ITERABLES];
   const Babl             *format  [GEGL_BUFFER_MAX_ITERABLES];
   guint                   flags   [GEGL_BUFFER_MAX_ITERABLES];
-  gpointer                buf     [GEGL_BUFFER_MAX_ITERABLES];
   _GeglBufferTileIterator i       [GEGL_BUFFER_MAX_ITERABLES];
 
 } _GeglBufferIterator;
@@ -270,7 +269,6 @@ gegl_buffer_iterator_add (GeglBufferIterator  *iterator,
   i->rect  [self] = *roi;
   i->format[self] = (format != NULL) ? format : buffer->format;
   i->flags [self] = flags;
-  i->buf   [self] = NULL;
 
   if (flags & GEGL_BUFFER_READ)
     lock_mode |= GEGL_TILE_LOCK_READ;
@@ -321,6 +319,11 @@ gegl_buffer_iterator_add (GeglBufferIterator  *iterator,
 
 /* FIXME: we are currently leaking this buf pool, it should be
  * freeing it when gegl is uninitialized
+ */
+
+/* XXX: keeping a small pool of such buffers around for the used formats
+ * would probably improve performance (old note from pippin, kept as a
+ * reminder)
  */
 
 typedef struct BufInfo {
@@ -378,18 +381,6 @@ iterator_buf_pool_release (gpointer buf)
   g_assert (0);
 }
 
-static void
-ensure_buf (_GeglBufferIterator *i,
-            gint no)
-{
-  /* XXX: keeping a small pool of such buffers around for the used formats
-   * would probably improve performance
-   */
-  if (i->buf[no] == NULL)
-    i->buf[no] = iterator_buf_pool_get (babl_format_get_bytes_per_pixel (
-                                          i->format[no]) * i->i[0].max_size);
-}
-
 #if DEBUG_DIRECT
 static glong direct_read = 0;
 static glong direct_write = 0;
@@ -439,8 +430,7 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
                                    GEGL_AUTO_ROWSTRIDE);
                 }
 
-              iterator_buf_pool_release (i->buf[no]);
-              i->buf[no] = NULL;
+              iterator_buf_pool_release (i->data[no]);
             }
 
           i->data[no]       = NULL;
@@ -478,8 +468,10 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
             }
           else
             {
-              ensure_buf (i, no);
-              i->data[no] = i->buf[no];
+              gint size = babl_format_get_bytes_per_pixel (i->format[no])
+                          * i->i[0].max_size;
+
+              i->data[no] = iterator_buf_pool_get (size);
 
               if (i->flags[no] & GEGL_BUFFER_READ)
                 gegl_buffer_get (i->buffer[no],
@@ -496,13 +488,15 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
         }
       else
         { 
+          gint size = babl_format_get_bytes_per_pixel (i->format[no])
+                      * i->i[0].max_size;
+
           /* we copy the roi from iterator 0  */
           i->roi[no]    = i->roi[0];
           i->roi[no].x += (i->rect[no].x - i->rect[0].x);
           i->roi[no].y += (i->rect[no].y - i->rect[0].y);
 
-          ensure_buf (i, no);
-          i->data[no] = i->buf[no];
+          i->data[no] = iterator_buf_pool_get (size);
 
           if (i->flags[no] & GEGL_BUFFER_READ)
             gegl_buffer_get (i->buffer[no],
@@ -566,8 +560,8 @@ gegl_buffer_iterator_free (GeglBufferIterator *iterator)
           i->buffer[cnt] = NULL;
         }
 
-      if (i->buf[cnt] != NULL)
-        iterator_buf_pool_release (i->buf[cnt]);
+      if (i->data[cnt] != NULL)
+        iterator_buf_pool_release (i->data[cnt]);
     }
 
   g_free (i);
