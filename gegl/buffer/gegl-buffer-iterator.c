@@ -35,16 +35,16 @@
 typedef struct _GeglBufferTileIterator
 {
   GeglBuffer      *buffer;
-  GeglRectangle    roi;       /* the rectangular region we're iterating over */
-  GeglTile        *tile;      /* current tile */
-  gint             max_size;  /* maximum data buffer needed, in bytes */
+  GeglRectangle    roi;      /* the rectangular region we're iterating over */
+  GeglTile        *tile;     /* current tile */
+  gint             max_size; /* maximum data buffer needed, in bytes */
 
   GeglTileLockMode lock_mode;
 
-  GeglRectangle    subrect;   /* the rectangular subregion of data in the
-                               * buffer represented by this scan
-                               */
-  gpointer         sub_data;  /* pointer to the data as indicated by subrect */
+  GeglRectangle    subrect;  /* the rectangular subregion of data in the
+                              * buffer represented by this scan
+                              */
+  gpointer         sub_data; /* pointer to the data as indicated by subrect */
 
   /* used internally */
   gint             next_col;
@@ -68,12 +68,14 @@ typedef struct _GeglBufferIterator
   /* the following is private */
   gint                    iterable_count;
   gint                    iteration_no;
+
   GeglBuffer             *buffer  [GEGL_BUFFER_MAX_ITERABLES];
   GeglRectangle           rect    [GEGL_BUFFER_MAX_ITERABLES];
   const Babl             *format  [GEGL_BUFFER_MAX_ITERABLES];
   guint                   flags   [GEGL_BUFFER_MAX_ITERABLES];
   gpointer                buf     [GEGL_BUFFER_MAX_ITERABLES];
   _GeglBufferTileIterator i       [GEGL_BUFFER_MAX_ITERABLES];
+
 } _GeglBufferIterator;
 
 static void
@@ -134,11 +136,13 @@ gegl_buffer_tile_iterator_init (_GeglBufferTileIterator *i,
   i->buffer    = buffer;
   i->roi       = roi;
   i->tile      = NULL;
-  i->lock_mode = lock_mode;
-  i->next_row  = 0;
-  i->next_col  = 0;
   i->max_size  = i->buffer->tile_storage->tile_width
                  * i->buffer->tile_storage->tile_height;
+
+  i->lock_mode = lock_mode;
+
+  i->next_row  = 0;
+  i->next_col  = 0;
 }
 
 static gboolean
