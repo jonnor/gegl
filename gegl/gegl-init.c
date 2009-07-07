@@ -78,6 +78,8 @@ guint gegl_debug_flags = 0;
 #include "buffer/gegl-buffer-private.h"
 #include "gegl-config.h"
 
+#include "gpu/gegl-gpu-init.h"
+
 
 /* if this function is made to return NULL swapping is disabled */
 const gchar *
@@ -159,6 +161,11 @@ gegl_init (gint    *argc,
   GError         *error = NULL;
   if (config)
     return;
+
+  /* initialize GPU subsystem and let it handle the program command-line
+   * first
+   */
+  gegl_gpu_init (argc, argv);
 
   /*  If any command-line actions are ever added to GEGL, then the commented
    *  out code below should be used.  Until then, we simply call the parse hook
@@ -398,7 +405,11 @@ gegl_exit (void)
 
   g_printf ("\n");
 
+  /* XXX: Should probably output some debug information. Everybody else is
+   * doing it, why aren't we?
+   */
   gegl_buffer_iterator_cleanup ();
+  gegl_gpu_exit ();
 }
 
 static void swap_clean (void);
