@@ -25,9 +25,13 @@
 #include "gegl-gpu-types.h"
 #include "gegl-gpu-texture.h"
 
-static void
-allocate_texture_data (GeglGpuTexture *texture)
+GeglGpuTexture *
+gegl_gpu_texture_new (gint        width,
+                      gint        height,
+                      const Babl *format)
 {
+  GeglGpuTexture *texture = g_new (GeglGpuTexture, 1);
+
   glGenTextures (1, &texture->handle);
   glBindTexture (GL_TEXTURE_RECTANGLE_ARB, texture->handle);
 
@@ -39,20 +43,11 @@ allocate_texture_data (GeglGpuTexture *texture)
   glTexParameteri (GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
 
   glTexImage2D  (GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA32F_ARB,
-                 texture->width, texture->height, 0, GL_RGBA, GL_FLOAT, 0);
+                 width, height, 0, GL_RGBA, GL_FLOAT, 0);
   glBindTexture (GL_TEXTURE_RECTANGLE_ARB, 0);
 
   gegl_gpu_texture_clear (texture, NULL);
-}
 
-GeglGpuTexture *
-gegl_gpu_texture_new (gint        width,
-                      gint        height,
-                      const Babl *format)
-{
-  GeglGpuTexture *texture = g_new (GeglGpuTexture, 1);
-
-  texture->handle = 0;
   texture->width  = width;
   texture->height = height;
 
@@ -66,10 +61,7 @@ gegl_gpu_texture_new (gint        width,
 void
 gegl_gpu_texture_free (GeglGpuTexture *texture)
 {
-  if (texture->handle > 0)
-    {
-      glDeleteTextures (1, &texture->handle);
-    }
+  glDeleteTextures (1, &texture->handle);
   g_free (texture);
 }
 
@@ -83,9 +75,6 @@ gegl_gpu_texture_get (const GeglGpuTexture *texture,
   gint     pixel_count = (roi != NULL)
                          ? roi->width * roi->height
                          : gegl_gpu_texture_get_pixel_count (texture);
-
-  if (texture->handle == 0)
-    allocate_texture_data ((GeglGpuTexture *) texture);
 
   if (format != NULL && format != texture->format)
     {
@@ -128,9 +117,6 @@ gegl_gpu_texture_set (GeglGpuTexture      *texture,
                       const Babl          *format)
 {
   gpointer buf;
-
-  if (texture->handle == 0)
-    allocate_texture_data (texture);
 
   if (format != NULL && format != texture->format)
     {
@@ -176,9 +162,6 @@ gegl_gpu_texture_clear (GeglGpuTexture      *texture,
 {
   gint bpp = babl_format_get_bytes_per_pixel (texture->format);
 
-  if (texture->handle == 0)
-    allocate_texture_data (texture);
-
   if (roi == NULL || (roi->x == 0 && roi->y == 0
         && roi->width == texture->width
         && roi->height == texture->height))
@@ -211,12 +194,6 @@ gegl_gpu_texture_copy (const GeglGpuTexture *src,
                        gint                  dest_x,
                        gint                  dest_y)
 {
-  if (src->handle == 0)
-    allocate_texture_data ((GeglGpuTexture *) src);
-
-  if (dest->handle == 0)
-    allocate_texture_data (dest);
-
   if (src->format == dest->format)
     {
       glFramebufferTexture2DEXT (GL_FRAMEBUFFER_EXT,
