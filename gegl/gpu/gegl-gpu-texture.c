@@ -188,45 +188,13 @@ void
 gegl_gpu_texture_clear (GeglGpuTexture      *texture,
                         const GeglRectangle *roi)
 {
-  gint bpp = babl_format_get_bytes_per_pixel (texture->format);
+  gint width   = (roi != NULL) ? roi->width : texture->width;
+  gint height  = (roi != NULL) ? roi->height : texture->height;
+  gint bpp     = babl_format_get_bytes_per_pixel (texture->format);
+  gpointer buf = g_malloc0 (width * height * bpp);
 
-  if (roi == NULL || (roi->x == 0 && roi->y == 0
-                      && roi->width == texture->width
-                      && roi->height == texture->height))
-    {
-      gint width  = texture->width;
-      gint height = texture->height;
-
-      gpointer buf = g_malloc0 (texture->width * texture->height * bpp);
-
-      glBindTexture (GL_TEXTURE_RECTANGLE_ARB, texture->handle);
-      glTexImage2D  (GL_TEXTURE_RECTANGLE_ARB,
-                     0,
-                     GL_RGBA32F_ARB,
-                     width,
-                     height,
-                     0,
-                     GL_RGBA,
-                     GL_FLOAT,
-                     buf);
-      glBindTexture (GL_TEXTURE_RECTANGLE_ARB, 0);
-    }
-  else
-    {
-      gpointer buf = g_malloc0 (roi->width * roi->height * bpp);
-
-      glBindTexture   (GL_TEXTURE_RECTANGLE_ARB, texture->handle);
-      glTexSubImage2D (GL_TEXTURE_RECTANGLE_ARB,
-                       0,
-                       roi->x,
-                       roi->y,
-                       roi->width,
-                       roi->height,
-                       GL_RGBA,
-                       GL_FLOAT,
-                       buf);
-      glBindTexture   (GL_TEXTURE_RECTANGLE_ARB, 0);
-    }
+  gegl_gpu_texture_set (texture, roi, buf, NULL);
+  g_free (buf);
 }
 
 void
