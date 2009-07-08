@@ -36,14 +36,23 @@ gegl_gpu_texture_new (gint        width,
   glBindTexture (GL_TEXTURE_RECTANGLE_ARB, texture->handle);
 
   glTexParameteri (GL_TEXTURE_RECTANGLE_ARB,
-                   GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+                   GL_TEXTURE_MIN_FILTER,
+                   GL_NEAREST);
   glTexParameteri (GL_TEXTURE_RECTANGLE_ARB,
-                   GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                   GL_TEXTURE_MAG_FILTER,
+                   GL_NEAREST);
   glTexParameteri (GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP);
   glTexParameteri (GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
 
-  glTexImage2D  (GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA32F_ARB,
-                 width, height, 0, GL_RGBA, GL_FLOAT, 0);
+  glTexImage2D  (GL_TEXTURE_RECTANGLE_ARB,
+                 0,
+                 GL_RGBA32F_ARB,
+                 width,
+                 height,
+                 0,
+                 GL_RGBA,
+                 GL_FLOAT,
+                 0);
   glBindTexture (GL_TEXTURE_RECTANGLE_ARB, 0);
 
   gegl_gpu_texture_clear (texture, NULL);
@@ -73,8 +82,8 @@ gegl_gpu_texture_get (const GeglGpuTexture *texture,
 {
   gpointer buf;
   gint     pixel_count = (roi != NULL)
-                         ? roi->width * roi->height
-                         : gegl_gpu_texture_get_pixel_count (texture);
+                           ? roi->width * roi->height
+                           : gegl_gpu_texture_get_pixel_count (texture);
 
   if (format != NULL && format != texture->format)
     {
@@ -85,8 +94,8 @@ gegl_gpu_texture_get (const GeglGpuTexture *texture,
     buf = dest;
 
   if (roi == NULL || (roi->x == 0 && roi->y == 0
-        && roi->width == texture->width
-        && roi->height == texture->height))
+                      && roi->width == texture->width
+                      && roi->height == texture->height))
     {
       glBindTexture (GL_TEXTURE_RECTANGLE_ARB, texture->handle);
       glGetTexImage (GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA, GL_FLOAT, buf);
@@ -95,8 +104,13 @@ gegl_gpu_texture_get (const GeglGpuTexture *texture,
   else
     {
       glBindTexture (GL_TEXTURE_RECTANGLE_ARB, texture->handle);
-      glReadPixels  (roi->x, roi->y, roi->width, roi->height,
-                     GL_RGBA, GL_FLOAT, buf);
+      glReadPixels  (roi->x,
+                     roi->y,
+                     roi->width,
+                     roi->height,
+                     GL_RGBA,
+                     GL_FLOAT,
+                     buf);
       glBindTexture (GL_TEXTURE_RECTANGLE_ARB, 0);
     }
 
@@ -133,22 +147,36 @@ gegl_gpu_texture_set (GeglGpuTexture      *texture,
     buf = src;
 
   if (roi == NULL || (roi->x == 0 && roi->y == 0
-        && roi->width == texture->width
-        && roi->height == texture->height))
+                      && roi->width == texture->width
+                      && roi->height == texture->height))
     {
       gint width  = texture->width;
       gint height = texture->height;
 
       glBindTexture (GL_TEXTURE_RECTANGLE_ARB, texture->handle);
-      glTexImage2D  (GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA32F_ARB,
-                     width, height, 0, GL_RGBA, GL_FLOAT, buf);
+      glTexImage2D  (GL_TEXTURE_RECTANGLE_ARB,
+                     0,
+                     GL_RGBA32F_ARB,
+                     width,
+                     height,
+                     0,
+                     GL_RGBA,
+                     GL_FLOAT,
+                     buf);
       glBindTexture (GL_TEXTURE_RECTANGLE_ARB, 0);
     }
   else
     {
       glBindTexture   (GL_TEXTURE_RECTANGLE_ARB, texture->handle);
-      glTexSubImage2D (GL_TEXTURE_RECTANGLE_ARB, 0, roi->x, roi->y,
-                       roi->width, roi->height, GL_RGBA, GL_FLOAT, buf);
+      glTexSubImage2D (GL_TEXTURE_RECTANGLE_ARB,
+                       0,
+                       roi->x,
+                       roi->y,
+                       roi->width,
+                       roi->height,
+                       GL_RGBA,
+                       GL_FLOAT,
+                       buf);
       glBindTexture   (GL_TEXTURE_RECTANGLE_ARB, 0);
     }
 
@@ -163,8 +191,8 @@ gegl_gpu_texture_clear (GeglGpuTexture      *texture,
   gint bpp = babl_format_get_bytes_per_pixel (texture->format);
 
   if (roi == NULL || (roi->x == 0 && roi->y == 0
-        && roi->width == texture->width
-        && roi->height == texture->height))
+                      && roi->width == texture->width
+                      && roi->height == texture->height))
     {
       gint width  = texture->width;
       gint height = texture->height;
@@ -172,8 +200,15 @@ gegl_gpu_texture_clear (GeglGpuTexture      *texture,
       gpointer buf = g_malloc0 (texture->width * texture->height * bpp);
 
       glBindTexture (GL_TEXTURE_RECTANGLE_ARB, texture->handle);
-      glTexImage2D  (GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGBA32F_ARB,
-                     width, height, 0, GL_RGBA, GL_FLOAT, buf);
+      glTexImage2D  (GL_TEXTURE_RECTANGLE_ARB,
+                     0,
+                     GL_RGBA32F_ARB,
+                     width,
+                     height,
+                     0,
+                     GL_RGBA,
+                     GL_FLOAT,
+                     buf);
       glBindTexture (GL_TEXTURE_RECTANGLE_ARB, 0);
     }
   else
@@ -181,8 +216,15 @@ gegl_gpu_texture_clear (GeglGpuTexture      *texture,
       gpointer buf = g_malloc0 (roi->width * roi->height * bpp);
 
       glBindTexture   (GL_TEXTURE_RECTANGLE_ARB, texture->handle);
-      glTexSubImage2D (GL_TEXTURE_RECTANGLE_ARB, 0, roi->x, roi->y,
-                       roi->width, roi->height, GL_RGBA, GL_FLOAT, buf);
+      glTexSubImage2D (GL_TEXTURE_RECTANGLE_ARB,
+                       0,
+                       roi->x,
+                       roi->y,
+                       roi->width,
+                       roi->height,
+                       GL_RGBA,
+                       GL_FLOAT,
+                       buf);
       glBindTexture   (GL_TEXTURE_RECTANGLE_ARB, 0);
     }
 }
@@ -198,17 +240,26 @@ gegl_gpu_texture_copy (const GeglGpuTexture *src,
     {
       glFramebufferTexture2DEXT (GL_FRAMEBUFFER_EXT,
                                  GL_COLOR_ATTACHMENT0_EXT,
-                                 GL_TEXTURE_RECTANGLE_ARB, src->handle, 0);
+                                 GL_TEXTURE_RECTANGLE_ARB,
+                                 src->handle,
+                                 0);
 
       glBindTexture       (GL_TEXTURE_RECTANGLE_ARB, dest->handle);
-      glCopyTexSubImage2D (GL_TEXTURE_RECTANGLE_ARB, 0, dest_x, dest_y,
-                           src_rect->x, src_rect->y,
-                           src_rect->width, src_rect->height);
+      glCopyTexSubImage2D (GL_TEXTURE_RECTANGLE_ARB,
+                           0,
+                           dest_x,
+                           dest_y,
+                           src_rect->x,
+                           src_rect->y,
+                           src_rect->width,
+                           src_rect->height);
       glBindTexture       (GL_TEXTURE_RECTANGLE_ARB, 0);
 
       glFramebufferTexture2DEXT (GL_FRAMEBUFFER_EXT,
                                  GL_COLOR_ATTACHMENT0_EXT,
-                                 GL_TEXTURE_RECTANGLE_ARB, 0, 0);
+                                 GL_TEXTURE_RECTANGLE_ARB,
+                                 0,
+                                 0);
     }
   else
     g_assert (0);
