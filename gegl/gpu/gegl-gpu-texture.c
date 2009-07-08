@@ -93,6 +93,14 @@ gegl_gpu_texture_get (const GeglGpuTexture *texture,
   else
     buf = dest;
 
+  glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, 
+                            GL_COLOR_ATTACHMENT0_EXT, 
+                            GL_TEXTURE_RECTANGLE_ARB,
+                            texture->handle,
+                            0);
+
+  glReadBuffer(GL_COLOR_ATTACHMENT0_EXT);
+
   if (roi == NULL || (roi->x == 0 && roi->y == 0
                       && roi->width == texture->width
                       && roi->height == texture->height))
