@@ -212,6 +212,14 @@ gegl_gpu_texture_copy (const GeglGpuTexture *src,
                        gint                  dest_x,
                        gint                  dest_y)
 {
+  glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, 
+                            GL_COLOR_ATTACHMENT0_EXT, 
+                            GL_TEXTURE_RECTANGLE_ARB,
+                            src->handle,
+                            0);
+
+  glReadBuffer(GL_COLOR_ATTACHMENT0_EXT);
+
   if (src->format == dest->format)
     {
       glFramebufferTexture2DEXT (GL_FRAMEBUFFER_EXT,
