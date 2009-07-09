@@ -55,8 +55,6 @@ gegl_gpu_texture_new (gint        width,
                  0);
   glBindTexture (GL_TEXTURE_RECTANGLE_ARB, 0);
 
-  gegl_gpu_texture_clear (texture, NULL);
-
   texture->width  = width;
   texture->height = height;
 

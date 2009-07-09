@@ -24,6 +24,9 @@
 #include "gegl-tile-handler-empty.h"
 #include "gegl-tile-handler-cache.h"
 
+#include "gegl-gpu-init.h"
+#include "gegl-gpu-texture.h"
+
 G_DEFINE_TYPE (GeglTileHandlerEmpty, gegl_tile_handler_empty, GEGL_TYPE_TILE_HANDLER)
 
 enum
@@ -145,6 +148,9 @@ constructor (GType                  type,
 
   /* FIXME: need babl format here */
   memset (gegl_tile_get_data (empty->tile), 0x00, tile_size);
+
+  if (gegl_gpu_is_accelerated ())
+    gegl_gpu_texture_clear (empty->tile->gpu_data, NULL);
 
   return object;
 }
