@@ -8,7 +8,14 @@ TESTS_ENVIRONMENT = \
 TESTS = \
 	test-proxynop-processing	\
 	test-color-op			\
-	test-gegl-rectangle
+	test-gegl-rectangle \
+	test-gegl-gpu-texture-clear \
+	test-gegl-gpu-texture-clear-subrect \
+	test-gegl-gpu-texture-set \
+	test-gegl-gpu-texture-set-subrect \
+	test-gegl-gpu-texture-copy \
+	test-gegl-gpu-texture-copy-subrect \
+	test-gegl-gpu-texture-dup
 noinst_PROGRAMS = $(TESTS)
 
 # Common CPPFLAGS
