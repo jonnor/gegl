@@ -467,28 +467,34 @@ gegl_buffer_iterator_cleanup (void)
 {
   gint cnt;
 
-  for (cnt = 0; cnt < buf_pool->len; cnt++)
+  if (buf_pool != NULL)
     {
-      BufInfo *info = &g_array_index (buf_pool, BufInfo, cnt);
-      gegl_free (info->buf);
-      info->buf = NULL;
+      for (cnt = 0; cnt < buf_pool->len; cnt++)
+        {
+          BufInfo *info = &g_array_index (buf_pool, BufInfo, cnt);
+          gegl_free (info->buf);
+          info->buf = NULL;
+        }
+
+      g_array_free (buf_pool, TRUE);
+      buf_pool = NULL;
     }
 
-  g_array_free (buf_pool, TRUE);
-  buf_pool = NULL;
-
-  for (cnt = 0; cnt < gpu_texture_pool->len; cnt++)
+  if (gpu_texture_pool != NULL)
     {
-      GpuTextureInfo *info = &g_array_index (gpu_texture_pool,
-                                             GpuTextureInfo,
-                                             cnt);
+      for (cnt = 0; cnt < gpu_texture_pool->len; cnt++)
+        {
+          GpuTextureInfo *info = &g_array_index (gpu_texture_pool,
+                                                 GpuTextureInfo,
+                                                 cnt);
 
-      gegl_gpu_texture_free (info->texture);
-      info->texture = NULL;
+          gegl_gpu_texture_free (info->texture);
+          info->texture = NULL;
+        }
+
+      g_array_free (gpu_texture_pool, TRUE);
+      gpu_texture_pool = NULL;
     }
-
-  g_array_free (gpu_texture_pool, TRUE);
-  gpu_texture_pool = NULL;
 }
 
 #if DEBUG_DIRECT
