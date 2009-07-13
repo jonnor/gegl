@@ -210,6 +210,16 @@ gegl_gpu_texture_copy (const GeglGpuTexture *src,
                        gint                  dest_x,
                        gint                  dest_y)
 {
+  const GeglRectangle *roi;
+
+  if (src_rect == NULL)
+    {
+      GeglRectangle temp = {0, 0, src->width, src->height};
+      roi = &temp;
+    }
+  else
+    roi = src_rect;
+
   glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, 
                             GL_COLOR_ATTACHMENT0_EXT, 
                             GL_TEXTURE_RECTANGLE_ARB,
@@ -231,10 +241,10 @@ gegl_gpu_texture_copy (const GeglGpuTexture *src,
                            0,
                            dest_x,
                            dest_y,
-                           src_rect->x,
-                           src_rect->y,
-                           src_rect->width,
-                           src_rect->height);
+                           roi->x,
+                           roi->y,
+                           roi->width,
+                           roi->height);
       glBindTexture       (GL_TEXTURE_RECTANGLE_ARB, 0);
 
       glFramebufferTexture2DEXT (GL_FRAMEBUFFER_EXT,
