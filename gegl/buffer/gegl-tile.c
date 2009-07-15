@@ -270,19 +270,25 @@ gegl_tile_new (gint        width,
 Babl *
 gegl_tile_get_format (GeglTile *tile)
 {
-  return tile->tile_storage->format;
+  return (tile->tile_storage != NULL)
+           ? tile->tile_storage->format
+           : NULL;
 }
 
 gint
 gegl_tile_get_width (GeglTile *tile)
 {
-  return tile->tile_storage->tile_width;
+  return (tile->tile_storage != NULL)
+           ? tile->tile_storage->tile_width
+           : -1;
 }
 
 gint
 gegl_tile_get_height (GeglTile *tile)
 {
-  return tile->tile_storage->tile_height;
+  return (tile->tile_storage != NULL)
+           ? tile->tile_storage->tile_height
+           : -1;
 }
 
 guchar *
