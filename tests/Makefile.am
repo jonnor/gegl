@@ -15,7 +15,11 @@ TESTS = \
 	test-gegl-gpu-texture-set-subrect \
 	test-gegl-gpu-texture-copy \
 	test-gegl-gpu-texture-copy-subrect \
-	test-gegl-gpu-texture-dup
+	test-gegl-gpu-texture-dup \
+	test-gegl-tile-lock-mode-write-then-read \
+	test-gegl-tile-lock-mode-write-then-gpu-read \
+	test-gegl-tile-lock-mode-gpu-write-then-read \
+	test-gegl-tile-lock-mode-gpu-write-then-gpu-read
 noinst_PROGRAMS = $(TESTS)
 
 # Common CPPFLAGS
