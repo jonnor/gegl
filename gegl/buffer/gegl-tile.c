@@ -231,6 +231,24 @@ gegl_tile_dup (GeglTile *src)
 {
   GeglTile *tile = g_object_new (GEGL_TYPE_TILE, NULL);
 
+  if (gegl_gpu_is_accelerated ())
+    {
+      if (src->rev > src->gpu_rev)
+        {
+          gegl_gpu_texture_set (src->gpu_data, NULL, src->data,
+                                gegl_tile_get_format (src));
+
+          src->gpu_rev = src->rev;
+        }
+      else if (src->gpu_rev > src->rev)
+        {
+          gegl_gpu_texture_get (src->gpu_data, NULL, src->data,
+                                gegl_tile_get_format (src));
+
+          src->rev = src->gpu_rev;
+        }
+    }
+
   tile->data     = src->data;
   tile->size     = src->size;
   tile->gpu_data = src->gpu_data;
