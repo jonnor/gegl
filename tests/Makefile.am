@@ -19,7 +19,9 @@ TESTS = \
 	test-gegl-tile-lock-mode-write-then-read \
 	test-gegl-tile-lock-mode-write-then-gpu-read \
 	test-gegl-tile-lock-mode-gpu-write-then-read \
-	test-gegl-tile-lock-mode-gpu-write-then-gpu-read
+	test-gegl-tile-lock-mode-gpu-write-then-gpu-read \
+	test-gegl-tile-cow \
+	test-gegl-tile-cow-consistency
 noinst_PROGRAMS = $(TESTS)
 
 # Common CPPFLAGS
