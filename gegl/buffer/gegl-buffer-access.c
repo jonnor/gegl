@@ -823,7 +823,7 @@ gegl_buffer_gpu_iterate (GeglBuffer          *buffer,
          texture_y       += copy_area_height,
          copy_area_height = tile_index_y < last_tile_index_y
                               ? tile_height
-                              : last_tile_offset_y)
+                              : last_tile_offset_y + 1)
     {
       for (tile_index_x      = first_tile_index_x,
              tile_offset_x   = first_tile_offset_x,
@@ -837,7 +837,7 @@ gegl_buffer_gpu_iterate (GeglBuffer          *buffer,
              texture_x      += copy_area_width,
              copy_area_width = tile_index_x < last_tile_index_x
                                  ? tile_width
-                                 : last_tile_offset_x)
+                                 : last_tile_offset_x + 1)
         {
           GeglTile *tile = gegl_tile_source_get_tile ((GeglTileSource *) buffer,
                                                       tile_index_x,
