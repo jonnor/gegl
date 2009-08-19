@@ -28,6 +28,14 @@
 
 #define ARRAY_SIZE(array) (sizeof (array) / sizeof (array[0]))
 
+#define TEXTURE_WIDTH  50
+#define TEXTURE_HEIGHT 50
+
+#define TEST_STRIP_WIDTH  10
+#define TEST_STRIP_HEIGHT 10
+
+#define RANDOM_PIXEL_COUNT 1000
+
 typedef struct GeglGpuTextureCopySubrectTestCase
 {
   gchar        *name;
@@ -45,23 +53,40 @@ main (gint    argc,
     {
       {
         "top-left corner",
-        { 0,  0, 10, 10}
+        { 0,  0, TEST_STRIP_WIDTH, TEST_STRIP_HEIGHT}
       },
       {
         "top-right corner",
-        {40,  0, 10, 10}
+        {
+          TEXTURE_WIDTH - TEST_STRIP_WIDTH,
+          0,
+          TEST_STRIP_WIDTH,
+          TEST_STRIP_HEIGHT}
       },
       {
         "bottom-left corner",
-        { 0, 40, 10, 10}
+        {
+          0,
+          TEXTURE_HEIGHT - TEST_STRIP_HEIGHT,
+          TEST_STRIP_WIDTH,
+          TEST_STRIP_HEIGHT}
       },
       {
         "bottom-right corner",
-        {40, 40, 10, 10}
+        {
+          TEXTURE_WIDTH - TEST_STRIP_WIDTH,
+          TEXTURE_HEIGHT - TEST_STRIP_HEIGHT,
+          TEST_STRIP_WIDTH,
+          TEST_STRIP_HEIGHT}
       },
       {
         "center",
-        {20, 20, 10, 10}
+        {
+          (TEXTURE_WIDTH - TEST_STRIP_WIDTH) / 2,
+          (TEXTURE_HEIGHT - TEST_STRIP_HEIGHT) / 2,
+          TEST_STRIP_WIDTH,
+          TEST_STRIP_HEIGHT
+        }
       }
     };
 
@@ -73,26 +98,30 @@ main (gint    argc,
 
   gegl_init (&argc, &argv);
 
-  texture1 = gegl_gpu_texture_new (50, 50, babl_format ("RGBA float"));
-  texture2 = gegl_gpu_texture_new (50, 50, babl_format ("RGBA float"));
+  texture1 = gegl_gpu_texture_new (TEXTURE_WIDTH,
+                                   TEXTURE_HEIGHT,
+                                   babl_format ("RGBA float"));
+  texture2 = gegl_gpu_texture_new (TEXTURE_WIDTH,
+                                   TEXTURE_HEIGHT,
+                                   babl_format ("RGBA float"));
 
-  components1 = g_new0 (gfloat, 50 * 50 * 4);
-  components2 = g_new0 (gfloat, 50 * 50 * 4);
+  components1 = g_new0 (gfloat, TEXTURE_WIDTH * TEXTURE_HEIGHT * 4);
+  components2 = g_new0 (gfloat, TEXTURE_WIDTH * TEXTURE_HEIGHT * 4);
 
     {
       gint cnt;
 
-      for (cnt = 0; cnt < 1000; cnt++)
+      for (cnt = 0; cnt < RANDOM_PIXEL_COUNT; cnt++)
         {
-          gint x = g_random_int_range (0, 50);
-          gint y = g_random_int_range (0, 50);
+          gint x = g_random_int_range (0, TEXTURE_WIDTH);
+          gint y = g_random_int_range (0, TEXTURE_HEIGHT);
 
-          gfloat *pixel = &components1[((y * 50) + x) * 4];
+          gfloat *pixel = &components1[((y * TEXTURE_WIDTH) + x) * 4];
 
-          pixel[0] = g_random_double();
-          pixel[1] = g_random_double();
-          pixel[2] = g_random_double();
-          pixel[3] = g_random_double();
+          pixel[0] = g_random_double ();
+          pixel[1] = g_random_double ();
+          pixel[2] = g_random_double ();
+          pixel[3] = g_random_double ();
         }
 
       /* set the texture to a random image (note: this test assumes that
@@ -124,7 +153,7 @@ main (gint    argc,
           for (y = test_cases[cnt].roi.y; y <= last_y; y++)
             for (x = test_cases[cnt].roi.x; x <= last_x; x++)
               {
-                gint index = ((y * 50) + x) * 4;
+                gint index = ((y * TEXTURE_WIDTH) + x) * 4;
 
                 gfloat *pixel1 = &components1[index];
                 gfloat *pixel2 = &components2[index];

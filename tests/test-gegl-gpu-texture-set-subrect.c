@@ -28,6 +28,14 @@
 
 #define ARRAY_SIZE(array) (sizeof (array) / sizeof (array[0]))
 
+#define TEXTURE_WIDTH  50
+#define TEXTURE_HEIGHT 50
+
+#define TEST_STRIP_WIDTH  10
+#define TEST_STRIP_HEIGHT 10
+
+#define RANDOM_PIXEL_COUNT 400
+
 typedef struct GeglGpuTextureSetSubrectTestCase
 {
   gchar        *name;
@@ -45,23 +53,40 @@ main (gint    argc,
     {
       {
         "top-left corner",
-        { 0,  0, 10, 10}
+        { 0,  0, TEST_STRIP_WIDTH, TEST_STRIP_HEIGHT}
       },
       {
         "top-right corner",
-        {40,  0, 10, 10}
+        {
+          TEXTURE_WIDTH - TEST_STRIP_WIDTH,
+          0,
+          TEST_STRIP_WIDTH,
+          TEST_STRIP_HEIGHT}
       },
       {
         "bottom-left corner",
-        { 0, 40, 10, 10}
+        {
+          0,
+          TEXTURE_HEIGHT - TEST_STRIP_HEIGHT,
+          TEST_STRIP_WIDTH,
+          TEST_STRIP_HEIGHT}
       },
       {
         "bottom-right corner",
-        {40, 40, 10, 10}
+        {
+          TEXTURE_WIDTH - TEST_STRIP_WIDTH,
+          TEXTURE_HEIGHT - TEST_STRIP_HEIGHT,
+          TEST_STRIP_WIDTH,
+          TEST_STRIP_HEIGHT}
       },
       {
         "center",
-        {20, 20, 10, 10}
+        {
+          (TEXTURE_WIDTH - TEST_STRIP_WIDTH) / 2,
+          (TEXTURE_HEIGHT - TEST_STRIP_HEIGHT) / 2,
+          TEST_STRIP_WIDTH,
+          TEST_STRIP_HEIGHT
+        }
       }
     };
 
@@ -72,10 +97,12 @@ main (gint    argc,
 
   gegl_init (&argc, &argv);
 
-  texture = gegl_gpu_texture_new (50, 50, babl_format ("RGBA float"));
+  texture = gegl_gpu_texture_new (TEXTURE_WIDTH,
+                                  TEXTURE_HEIGHT,
+                                  babl_format ("RGBA float"));
 
-  components1 = g_new (gfloat, 10 * 10 * 4);
-  components2 = g_new (gfloat, 10 * 10 * 4);
+  components1 = g_new0 (gfloat, TEST_STRIP_WIDTH * TEST_STRIP_HEIGHT * 4);
+  components2 = g_new0 (gfloat, TEST_STRIP_WIDTH * TEST_STRIP_HEIGHT * 4);
 
     {
       gint i;
@@ -84,20 +111,25 @@ main (gint    argc,
         {
           gint j;
 
-          memset (components1, 0, sizeof (gfloat) * 10 * 10 * 4);
-          memset (components2, 0, sizeof (gfloat) * 10 * 10 * 4);
+          memset (components1, 0, sizeof (gfloat)
+                                    * TEST_STRIP_WIDTH
+                                    * TEST_STRIP_HEIGHT * 4);
 
-          for (j = 0; j < 400; j++)
+          memset (components2, 0, sizeof (gfloat)
+                                    * TEST_STRIP_WIDTH
+                                    * TEST_STRIP_HEIGHT * 4);
+
+          for (j = 0; j < RANDOM_PIXEL_COUNT; j++)
             {
-              gint x = g_random_int_range (0, 10);
-              gint y = g_random_int_range (0, 10);
+              gint x = g_random_int_range (0, TEST_STRIP_WIDTH);
+              gint y = g_random_int_range (0, TEST_STRIP_HEIGHT);
 
-              gfloat *pixel = &components1[((y * 10) + x) * 4];
+              gfloat *pixel = &components1[((y * TEST_STRIP_WIDTH) + x) * 4];
 
-              pixel[0] = g_random_double();
-              pixel[1] = g_random_double();
-              pixel[2] = g_random_double();
-              pixel[3] = g_random_double();
+              pixel[0] = g_random_double ();
+              pixel[1] = g_random_double ();
+              pixel[2] = g_random_double ();
+              pixel[3] = g_random_double ();
             }
 
           /* set the texture subregion to a random image */
@@ -116,7 +148,7 @@ main (gint    argc,
                                 NULL);
 
           /* test subregion */
-          for (j = 0; j < 10 * 10 * 4; j++)
+          for (j = 0; j < TEST_STRIP_WIDTH * TEST_STRIP_HEIGHT * 4; j++)
             if (!GEGL_FLOAT_EQUAL (components1[j], components2[j]))
               {
                 g_printerr ("The gegl_gpu_texture_set() (%s) test failed. "

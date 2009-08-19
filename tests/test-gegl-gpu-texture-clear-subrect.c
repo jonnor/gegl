@@ -27,6 +27,12 @@
 
 #define ARRAY_SIZE(array) (sizeof (array) / sizeof (array[0]))
 
+#define TEXTURE_WIDTH  50
+#define TEXTURE_HEIGHT 50
+
+#define TEST_STRIP_WIDTH  10
+#define TEST_STRIP_HEIGHT 10
+
 typedef struct GeglGpuTextureClearSubrectTestCase
 {
   gchar        *name;
@@ -44,23 +50,40 @@ main (gint    argc,
     {
       {
         "top-left corner",
-        { 0,  0, 10, 10}
+        { 0,  0, TEST_STRIP_WIDTH, TEST_STRIP_HEIGHT}
       },
       {
         "top-right corner",
-        {40,  0, 10, 10}
+        {
+          TEXTURE_WIDTH - TEST_STRIP_WIDTH,
+          0,
+          TEST_STRIP_WIDTH,
+          TEST_STRIP_HEIGHT}
       },
       {
         "bottom-left corner",
-        { 0, 40, 10, 10}
+        {
+          0,
+          TEXTURE_HEIGHT - TEST_STRIP_HEIGHT,
+          TEST_STRIP_WIDTH,
+          TEST_STRIP_HEIGHT}
       },
       {
         "bottom-right corner",
-        {40, 40, 10, 10}
+        {
+          TEXTURE_WIDTH - TEST_STRIP_WIDTH,
+          TEXTURE_HEIGHT - TEST_STRIP_HEIGHT,
+          TEST_STRIP_WIDTH,
+          TEST_STRIP_HEIGHT}
       },
       {
         "center",
-        {20, 20, 10, 10}
+        {
+          (TEXTURE_WIDTH - TEST_STRIP_WIDTH) / 2,
+          (TEXTURE_HEIGHT - TEST_STRIP_HEIGHT) / 2,
+          TEST_STRIP_WIDTH,
+          TEST_STRIP_HEIGHT
+        }
       }
     };
 
@@ -69,8 +92,11 @@ main (gint    argc,
 
   gegl_init (&argc, &argv);
 
-  texture    = gegl_gpu_texture_new (50, 50, babl_format ("RGBA float"));
-  components = g_new (gfloat, 50 * 50 * 4);
+  texture = gegl_gpu_texture_new (TEXTURE_WIDTH,
+                                  TEXTURE_HEIGHT,
+                                  babl_format ("RGBA float"));
+
+  components = g_new (gfloat, TEXTURE_WIDTH * TEXTURE_HEIGHT * 4);
 
     {
       gint   cnt;
@@ -81,7 +107,7 @@ main (gint    argc,
       color[2] = g_random_double ();
       color[3] = g_random_double ();
 
-      for (cnt = 0; cnt < 50 * 50; cnt++)
+      for (cnt = 0; cnt < TEXTURE_WIDTH * TEXTURE_HEIGHT; cnt++)
         {
           gint index = cnt * 4;
 
@@ -114,7 +140,7 @@ main (gint    argc,
           for (y = test_cases[cnt].roi.y; y <= last_y; y++)
             for (x = test_cases[cnt].roi.x; x <= last_x; x++)
               {
-                gfloat *pixel = &components[((y * 50) + x) * 4];
+                gfloat *pixel = &components[((y * TEXTURE_WIDTH) + x) * 4];
 
                 if (   !GEGL_FLOAT_IS_ZERO (pixel[0])
                     || !GEGL_FLOAT_IS_ZERO (pixel[1])

@@ -27,6 +27,9 @@
 #define SUCCESS 0
 #define FAILURE (-1)
 
+#define TEXTURE_WIDTH  50
+#define TEXTURE_HEIGHT 50
+
 gint
 main (gint    argc,
       gchar **argv)
@@ -38,7 +41,10 @@ main (gint    argc,
 
   gegl_init (&argc, &argv);
 
-  tile  = gegl_tile_new (50, 50, babl_format ("RGBA float"));
+  tile  = gegl_tile_new (TEXTURE_WIDTH,
+                         TEXTURE_HEIGHT,
+                         babl_format ("RGBA float"));
+
   tile2 = gegl_tile_dup (tile);
 
   if (gegl_tile_get_data (tile) != gegl_tile_get_data (tile2))

@@ -28,6 +28,9 @@
 #define SUCCESS 0
 #define FAILURE (-1)
 
+#define TEXTURE_WIDTH  50
+#define TEXTURE_HEIGHT 50
+
 gint
 main (gint    argc,
       gchar **argv)
@@ -41,11 +44,17 @@ main (gint    argc,
 
   gegl_init (&argc, &argv);
 
-  tile = gegl_tile_new (50, 50, babl_format ("RGBA float"));
+  tile = gegl_tile_new (TEXTURE_WIDTH,
+                        TEXTURE_HEIGHT,
+                        babl_format ("RGBA float"));
+
+  gegl_tile_lock (tile, GEGL_TILE_LOCK_WRITE);
 
   /* clear tile data (not GPU data) and leave the tile unsynchronized */
-  gegl_tile_lock (tile, GEGL_TILE_LOCK_WRITE);
-  memset (gegl_tile_get_data (tile), 0x00, sizeof (gfloat) * 50 * 50 * 4);
+  memset (gegl_tile_get_data (tile), 0x00, sizeof (gfloat)
+                                             * TEXTURE_WIDTH
+                                             * TEXTURE_HEIGHT * 4);
+
   gegl_tile_unlock (tile);
 
   tile2 = gegl_tile_dup (tile);
@@ -59,13 +68,13 @@ main (gint    argc,
        */
       gfloat *components  = (gpointer) gegl_tile_get_data (tile2);
 
-      gpu_components = g_new (gfloat, 50 * 50 * 4);
+      gpu_components = g_new (gfloat, TEXTURE_WIDTH * TEXTURE_HEIGHT * 4);
       gegl_gpu_texture_get (gegl_tile_get_gpu_data (tile2),
                             NULL,
                             gpu_components,
                             babl_format ("RGBA float"));
 
-      for (cnt = 0; cnt < 50 * 50 * 4; cnt++)
+      for (cnt = 0; cnt < TEXTURE_WIDTH * TEXTURE_HEIGHT * 4; cnt++)
         if (!GEGL_FLOAT_EQUAL (components[cnt], gpu_components[cnt]))
           {
             g_printerr ("Test on gegl_tile_dup() GPU data/data consistency "
