@@ -37,7 +37,7 @@ main (gint    argc,
   gegl_init (&argc, &argv);
 
   texture    = gegl_gpu_texture_new (50, 50, babl_format ("RGBA float"));
-  components = g_new (gfloat, 4 * 50 * 50);
+  components = g_new (gfloat, 50 * 50 * 4);
 
     {
       gint   cnt;
@@ -68,7 +68,7 @@ main (gint    argc,
       gegl_gpu_texture_clear (texture, NULL);
       gegl_gpu_texture_get   (texture, NULL, components, NULL);
 
-      for (cnt = 0; cnt < 4 * 50 * 50; cnt++)
+      for (cnt = 0; cnt < 50 * 50 * 4; cnt++)
         if (!GEGL_FLOAT_IS_ZERO (components[cnt]))
           {
             g_printerr ("The gegl_gpu_texture_clear() test failed. "

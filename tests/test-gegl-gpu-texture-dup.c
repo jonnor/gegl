@@ -40,8 +40,8 @@ main (gint    argc,
 
   texture1 = gegl_gpu_texture_new (50, 50, babl_format ("RGBA float"));
 
-  components1 = g_new (gfloat, 4 * 50 * 50);
-  components2 = g_new (gfloat, 4 * 50 * 50);
+  components1 = g_new (gfloat, 50 * 50 * 4);
+  components2 = g_new (gfloat, 50 * 50 * 4);
 
     {
       gint cnt;
@@ -51,7 +51,7 @@ main (gint    argc,
         {
           gint    x     = g_random_int_range (0, 50);
           gint    y     = g_random_int_range (0, 50);
-          gfloat *pixel = &components1[(y * 50) + (x * 4)];
+          gfloat *pixel = &components1[((y * 50) + x) * 4];
 
           pixel[0] = 1.0;
           pixel[1] = 1.0;
@@ -65,7 +65,7 @@ main (gint    argc,
       gegl_gpu_texture_get (texture2, NULL, components2, NULL);
 
       /* compare the two images */
-      for (cnt = 0; cnt < 4 * 50 * 50; cnt++)
+      for (cnt = 0; cnt < 50 * 50 * 4; cnt++)
         if (components1[cnt] != components2[cnt])
           {
             g_printerr ("The gegl_gpu_texture_dup() test failed. Aborting.\n");

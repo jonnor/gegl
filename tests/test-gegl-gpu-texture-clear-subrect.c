@@ -70,7 +70,7 @@ main (gint    argc,
   gegl_init (&argc, &argv);
 
   texture    = gegl_gpu_texture_new (50, 50, babl_format ("RGBA float"));
-  components = g_new (gfloat, 4 * 50 * 50);
+  components = g_new (gfloat, 50 * 50 * 4);
 
     {
       gint   cnt;
@@ -114,7 +114,7 @@ main (gint    argc,
           for (y = test_cases[cnt].roi.y; y <= last_y; y++)
             for (x = test_cases[cnt].roi.x; x <= last_x; x++)
               {
-                gfloat *pixel = &components[(y * 4 * 50) + (x * 4)];
+                gfloat *pixel = &components[((y * 50) + x) * 4];
 
                 if (   !GEGL_FLOAT_IS_ZERO (pixel[0])
                     || !GEGL_FLOAT_IS_ZERO (pixel[1])

@@ -40,22 +40,21 @@ main (gint    argc,
   gegl_init (&argc, &argv);
 
   tile       = gegl_tile_new (50, 50, babl_format ("RGBA float"));
-  components = g_new (gfloat, 4 * 50 * 50);
+  components = g_new (gfloat, 50 * 50 * 4);
 
     {
       gint    cnt;
       gfloat *tile_components;
 
-      memset (tile->data, 0, 4 * 50 * 50);
+      memset (tile->data, 0, 50 * 50 * 4);
       gegl_gpu_texture_clear (tile->gpu_data, NULL);
 
-      /* initialize tile to a random image */
       for (cnt = 0; cnt < 1000; cnt++)
         {
           gint x = g_random_int_range (0, 50);
           gint y = g_random_int_range (0, 50);
 
-          gfloat *pixel = &components[(y * 4 * 50) + (x * 4)];
+          gfloat *pixel = &components[((y * 50) + x) * 4];
 
           pixel[0] = g_random_double ();
           pixel[1] = g_random_double ();
@@ -65,6 +64,7 @@ main (gint    argc,
 
       gegl_tile_lock (tile, GEGL_TILE_LOCK_GPU_WRITE);
 
+      /* set tile to a random image */
       gegl_gpu_texture_set (gegl_tile_get_gpu_data (tile),
                             NULL,
                             components,
@@ -76,7 +76,7 @@ main (gint    argc,
       gegl_tile_lock (tile, GEGL_TILE_LOCK_READ);
       tile_components = (gpointer) gegl_tile_get_data (tile);
 
-      for (cnt = 0; cnt < 4 * 50 * 50; cnt++)
+      for (cnt = 0; cnt < 50 * 50 * 4; cnt++)
         if (!GEGL_FLOAT_EQUAL (tile_components[cnt], components[cnt]))
           {
             g_printerr ("Tile data inconsistent with original GPU texture. "
