@@ -68,29 +68,42 @@ main (gint    argc,
   GeglGpuTexture *texture1;
   GeglGpuTexture *texture2;
 
-  gfloat *components;
+  gfloat *components1;
+  gfloat *components2;
 
   gegl_init (&argc, &argv);
 
   texture1 = gegl_gpu_texture_new (50, 50, babl_format ("RGBA float"));
   texture2 = gegl_gpu_texture_new (50, 50, babl_format ("RGBA float"));
 
-  components = g_new (gfloat, 4 * 50 * 50);
+  components1 = g_new0 (gfloat, 50 * 50 * 4);
+  components2 = g_new0 (gfloat, 50 * 50 * 4);
 
     {
       gint cnt;
 
-      /* initialize first texture to some solid color */
-      for (cnt = 0; cnt < 4 * 50 * 50; cnt++)
-        components[cnt] = 1.0;
+      for (cnt = 0; cnt < 1000; cnt++)
+        {
+          gint x = g_random_int_range (0, 50);
+          gint y = g_random_int_range (0, 50);
 
-      gegl_gpu_texture_set   (texture1, NULL, components, NULL);
+          gfloat *pixel = &components1[((y * 50) + x) * 4];
 
-      /* clear second texture and copy individual subregions from the
-       * first texture to the second texture
+          pixel[0] = g_random_double();
+          pixel[1] = g_random_double();
+          pixel[2] = g_random_double();
+          pixel[3] = g_random_double();
+        }
+
+      /* set the texture to a random image (note: this test assumes that
+       * gegl_gpu_texture_set() works as expected)
        */
+      gegl_gpu_texture_set   (texture1, NULL, components1, NULL);
       gegl_gpu_texture_clear (texture2, NULL);
 
+      /* copy individual subregions from the first texture to the
+       * second texture
+       */
       for (cnt = 0; cnt < ARRAY_SIZE (test_cases); cnt++)
         gegl_gpu_texture_copy (texture1,
                                &test_cases[cnt].roi,
@@ -98,8 +111,7 @@ main (gint    argc,
                                test_cases[cnt].roi.x,
                                test_cases[cnt].roi.y);
 
-      memset (components, 0, sizeof (gfloat) * 4 * 50 * 50);
-      gegl_gpu_texture_get (texture2, NULL, components, NULL);
+      gegl_gpu_texture_get (texture2, NULL, components2, NULL);
 
       /* test individual subregions */
       for (cnt = 0; cnt < ARRAY_SIZE (test_cases); cnt++)
@@ -112,12 +124,15 @@ main (gint    argc,
           for (y = test_cases[cnt].roi.y; y <= last_y; y++)
             for (x = test_cases[cnt].roi.x; x <= last_x; x++)
               {
-                gfloat *pixel = &components[(y * 4 * 50) + (x * 4)];
+                gint index = ((y * 50) + x) * 4;
 
-                if (   !GEGL_FLOAT_EQUAL (pixel[0], 1.0)
-                    || !GEGL_FLOAT_EQUAL (pixel[1], 1.0)
-                    || !GEGL_FLOAT_EQUAL (pixel[2], 1.0)
-                    || !GEGL_FLOAT_EQUAL (pixel[3], 1.0))
+                gfloat *pixel1 = &components1[index];
+                gfloat *pixel2 = &components2[index];
+
+                if (   !GEGL_FLOAT_EQUAL (pixel1[0], pixel2[0])
+                    || !GEGL_FLOAT_EQUAL (pixel1[1], pixel2[1])
+                    || !GEGL_FLOAT_EQUAL (pixel1[2], pixel2[2])
+                    || !GEGL_FLOAT_EQUAL (pixel1[3], pixel2[3]))
                   {
                     g_printerr ("The gegl_gpu_texture_copy() (%s) test failed. "
                                 "Aborting.\n", test_cases[cnt].name);
@@ -130,7 +145,8 @@ main (gint    argc,
     }
 
 abort:
-  g_free (components);
+  g_free (components2);
+  g_free (components1);
 
   gegl_gpu_texture_free (texture2);
   gegl_gpu_texture_free (texture1);

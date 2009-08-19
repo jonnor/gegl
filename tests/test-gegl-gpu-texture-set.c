@@ -33,30 +33,43 @@ main (gint    argc,
   gint retval = SUCCESS;
 
   GeglGpuTexture *texture;
-  gfloat         *components;
+
+  gfloat *components1;
+  gfloat *components2;
 
   gegl_init (&argc, &argv);
 
-  texture    = gegl_gpu_texture_new (50, 50, babl_format ("RGBA float"));
-  components = g_new (gfloat, 4 * 50 * 50);
+  texture = gegl_gpu_texture_new (50, 50, babl_format ("RGBA float"));
+
+  components1 = g_new0 (gfloat, 50 * 50 * 4);
+  components2 = g_new0 (gfloat, 50 * 50 * 4);
 
     {
       gint cnt;
 
-      /* set texture to some solid color */
-      for (cnt = 0; cnt < 4 * 50 * 50; cnt++)
-        components[cnt] = 1.0;
+      for (cnt = 0; cnt < 1000; cnt++)
+        {
+          gint x = g_random_int_range (0, 50);
+          gint y = g_random_int_range (0, 50);
 
-      gegl_gpu_texture_clear (texture, NULL);
-      gegl_gpu_texture_set   (texture, NULL, components, NULL);
+          gfloat *pixel = &components1[((y * 50) + x) * 4];
 
-      /* we zero to make sure that we aren't testing this array's old values */
-      memset (components, 0, sizeof (gfloat) * 4 * 50 * 50);
+          pixel[0] = g_random_double();
+          pixel[1] = g_random_double();
+          pixel[2] = g_random_double();
+          pixel[3] = g_random_double();
+        }
 
-      gegl_gpu_texture_get (texture, NULL, components, NULL);
+      /* set the texture to a random image */
+      gegl_gpu_texture_set (texture, NULL, components1, NULL);
 
-      for (cnt = 0; cnt < 4 * 50 * 50; cnt++)
-        if (!GEGL_FLOAT_EQUAL (components[cnt], 1.0))
+      /* get the texture and put it in a different buffer (actually, this test
+       * should also be considered as a test for gegl_gpu_texture_get())
+       */
+      gegl_gpu_texture_get (texture, NULL, components2, NULL);
+
+      for (cnt = 0; cnt < 50 * 50 * 4; cnt++)
+        if (!GEGL_FLOAT_EQUAL (components1[cnt], components2[cnt]))
           {
             g_printerr ("The gegl_gpu_texture_set() test failed. Aborting.\n");
             retval = FAILURE;
@@ -65,7 +78,9 @@ main (gint    argc,
     }
 
 abort:
-  g_free (components);
+  g_free (components2);
+  g_free (components1);
+
   gegl_gpu_texture_free (texture);
 
   gegl_exit ();

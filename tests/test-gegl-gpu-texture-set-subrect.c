@@ -16,6 +16,7 @@
  * Copyright 2009 Jerson Michael Perpetua <jersonperpetua@gmail.com>
  */
 
+#include <string.h>
 #include <babl/babl.h>
 
 #include "gegl.h"
@@ -65,60 +66,72 @@ main (gint    argc,
     };
 
   GeglGpuTexture *texture;
-  gfloat         *components;
+
+  gfloat *components1;
+  gfloat *components2;
 
   gegl_init (&argc, &argv);
 
-  texture    = gegl_gpu_texture_new (50, 50, babl_format ("RGBA float"));
-  components = g_new (gfloat, 4 * 50 * 50);
+  texture = gegl_gpu_texture_new (50, 50, babl_format ("RGBA float"));
+
+  components1 = g_new (gfloat, 10 * 10 * 4);
+  components2 = g_new (gfloat, 10 * 10 * 4);
 
     {
-      gint    cnt;
-      gfloat *region = g_new (gfloat, 4 * 10 * 10);
+      gint i;
 
-      /* set individual subregions to a solid color */
-      for (cnt = 0; cnt < 4 * 10 * 10; cnt++)
-        region[cnt] = 1.0;
-
-      gegl_gpu_texture_clear (texture, NULL);
-
-      for (cnt = 0; cnt < ARRAY_SIZE (test_cases); cnt++)
-        gegl_gpu_texture_set (texture, &test_cases[cnt].roi, region, NULL);
-
-      gegl_gpu_texture_get (texture, NULL, components, NULL);
-
-      /* test individual subregions */
-      for (cnt = 0; cnt < ARRAY_SIZE (test_cases); cnt++)
+      for (i = 0; i < ARRAY_SIZE (test_cases); i++)
         {
-          gint x, y;
+          gint j;
 
-          gint last_x = test_cases[cnt].roi.x + test_cases[cnt].roi.width - 1;
-          gint last_y = test_cases[cnt].roi.y + test_cases[cnt].roi.height - 1;
+          memset (components1, 0, sizeof (gfloat) * 10 * 10 * 4);
+          memset (components2, 0, sizeof (gfloat) * 10 * 10 * 4);
 
-          for (y = test_cases[cnt].roi.y; y <= last_y; y++)
-            for (x = test_cases[cnt].roi.x; x <= last_x; x++)
+          for (j = 0; j < 400; j++)
+            {
+              gint x = g_random_int_range (0, 10);
+              gint y = g_random_int_range (0, 10);
+
+              gfloat *pixel = &components1[((y * 10) + x) * 4];
+
+              pixel[0] = g_random_double();
+              pixel[1] = g_random_double();
+              pixel[2] = g_random_double();
+              pixel[3] = g_random_double();
+            }
+
+          /* set the texture subregion to a random image */
+          gegl_gpu_texture_set (texture,
+                                &test_cases[i].roi,
+                                components1,
+                                NULL);
+
+          /* get the texture and put it in a different buffer (actually, this
+           * test should also be considered as a test for
+           * gegl_gpu_texture_get())
+           */
+          gegl_gpu_texture_get (texture,
+                                &test_cases[i].roi,
+                                components2,
+                                NULL);
+
+          /* test subregion */
+          for (j = 0; j < 10 * 10 * 4; j++)
+            if (!GEGL_FLOAT_EQUAL (components1[j], components2[j]))
               {
-                gfloat *pixel = &components[(y * 4 * 50) + (x * 4)];
+                g_printerr ("The gegl_gpu_texture_set() (%s) test failed. "
+                            "Aborting.\n", test_cases[i].name);
 
-                if (   !GEGL_FLOAT_EQUAL (pixel[0], 1.0)
-                    || !GEGL_FLOAT_EQUAL (pixel[1], 1.0)
-                    || !GEGL_FLOAT_EQUAL (pixel[2], 1.0)
-                    || !GEGL_FLOAT_EQUAL (pixel[3], 1.0))
-                  {
-                    g_printerr ("The gegl_gpu_texture_set() (%s) test failed. "
-                                "Aborting.\n", test_cases[cnt].name);
-
-                    retval = FAILURE;
-                    goto abort;
-                  }
+                retval = FAILURE;
+                goto abort;
               }
         }
-
-      g_free (region);
     }
 
 abort:
-  g_free (components);
+  g_free (components2);
+  g_free (components1);
+
   gegl_gpu_texture_free (texture);
 
   gegl_exit ();
