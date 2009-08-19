@@ -19,6 +19,7 @@
 #include <babl/babl.h>
 
 #include "gegl.h"
+#include "gegl-utils.h"
 #include "gegl-gpu-texture.h"
 
 #define SUCCESS 0
@@ -93,10 +94,10 @@ main (gint    argc,
               {
                 gfloat *pixel = &components[(y * 4 * 50) + (x * 4)];
 
-                if (pixel[0] != 0.0
-                    || pixel[1] != 0.0
-                    || pixel[2] != 0.0
-                    || pixel[3] != 0.0)
+                if (   !GEGL_FLOAT_IS_ZERO (pixel[0])
+                    || !GEGL_FLOAT_IS_ZERO (pixel[1])
+                    || !GEGL_FLOAT_IS_ZERO (pixel[2])
+                    || !GEGL_FLOAT_IS_ZERO (pixel[3]))
                   {
                     g_printerr ("The gegl_gpu_texture_clear() (%s) test "
                                 "failed. Aborting.\n", test_cases[cnt].name);

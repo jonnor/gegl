@@ -19,6 +19,7 @@
 #include <babl/babl.h>
 
 #include "gegl.h"
+#include "gegl-utils.h"
 #include "gegl-gpu-texture.h"
 
 #define SUCCESS 0
@@ -68,7 +69,7 @@ main (gint    argc,
 
       /* compare the two images */
       for (cnt = 0; cnt < 4 * 50 * 50; cnt++)
-        if (components1[cnt] != components2[cnt])
+        if (!GEGL_FLOAT_EQUAL (components1[cnt], components2[cnt]))
           {
             g_printerr ("The gegl_gpu_texture_copy() test failed. "
                         "Aborting.\n");

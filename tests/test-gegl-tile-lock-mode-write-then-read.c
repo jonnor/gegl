@@ -20,6 +20,7 @@
 #include <babl/babl.h>
 
 #include "gegl.h"
+#include "gegl-utils.h"
 #include "gegl-gpu-texture.h"
 
 #include "../../gegl/buffer/gegl-tile.h"
@@ -75,7 +76,7 @@ main (gint    argc,
       tile_components = (gpointer) gegl_tile_get_data (tile);
 
       for (cnt = 0; cnt < 4 * 50 * 50; cnt++)
-        if (tile_components[cnt] != components[cnt])
+        if (!GEGL_FLOAT_EQUAL (tile_components[cnt], components[cnt]))
           {
             g_printerr ("Tile data inconsistent with original image data. "
                         "Aborting.\n");

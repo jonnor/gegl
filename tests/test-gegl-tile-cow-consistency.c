@@ -20,6 +20,7 @@
 #include <babl/babl.h>
 
 #include "gegl.h"
+#include "gegl-utils.h"
 #include "gegl-gpu-texture.h"
 
 #include "../../gegl/buffer/gegl-tile.h"
@@ -65,7 +66,7 @@ main (gint    argc,
                             babl_format ("RGBA float"));
 
       for (cnt = 0; cnt < 4 * 50 * 50; cnt++)
-        if (components[cnt] != gpu_components[cnt])
+        if (!GEGL_FLOAT_EQUAL (components[cnt], gpu_components[cnt]))
           {
             g_printerr ("Test on gegl_tile_dup() GPU data/data consistency "
                         "failed. Aborting.\n");

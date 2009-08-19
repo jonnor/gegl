@@ -19,6 +19,7 @@
 #include <babl/babl.h>
 
 #include "gegl.h"
+#include "gegl-utils.h"
 #include "gegl-gpu-texture.h"
 
 #define SUCCESS 0
@@ -45,7 +46,7 @@ main (gint    argc,
       gegl_gpu_texture_get   (texture, NULL, components, NULL);
 
       for (cnt = 0; cnt < 4 * 50 * 50; cnt++)
-        if (components[cnt] != 0.0)
+        if (!GEGL_FLOAT_IS_ZERO (components[cnt]))
           {
             g_printerr ("The gegl_gpu_texture_clear() test failed. "
                         "Aborting.\n");
