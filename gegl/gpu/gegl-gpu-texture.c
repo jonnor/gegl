@@ -220,14 +220,6 @@ gegl_gpu_texture_copy (const GeglGpuTexture *src,
   else
     roi = src_rect;
 
-  glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, 
-                            GL_COLOR_ATTACHMENT0_EXT, 
-                            GL_TEXTURE_RECTANGLE_ARB,
-                            src->handle,
-                            0);
-
-  glReadBuffer(GL_COLOR_ATTACHMENT0_EXT);
-
   if (src->format == dest->format)
     {
       glFramebufferTexture2DEXT (GL_FRAMEBUFFER_EXT,
@@ -235,6 +227,8 @@ gegl_gpu_texture_copy (const GeglGpuTexture *src,
                                  GL_TEXTURE_RECTANGLE_ARB,
                                  src->handle,
                                  0);
+
+      glReadBuffer(GL_COLOR_ATTACHMENT0_EXT);
 
       glBindTexture       (GL_TEXTURE_RECTANGLE_ARB, dest->handle);
       glCopyTexSubImage2D (GL_TEXTURE_RECTANGLE_ARB,
