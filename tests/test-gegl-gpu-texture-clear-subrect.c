@@ -73,7 +73,29 @@ main (gint    argc,
   components = g_new (gfloat, 4 * 50 * 50);
 
     {
-      gint cnt;
+      gint   cnt;
+      gfloat color[4];
+
+      color[0] = g_random_double ();
+      color[1] = g_random_double ();
+      color[2] = g_random_double ();
+      color[3] = g_random_double ();
+
+      for (cnt = 0; cnt < 50 * 50; cnt++)
+        {
+          gint index = cnt * 4;
+
+          components[index    ] = color[0];
+          components[index + 1] = color[1];
+          components[index + 2] = color[2];
+          components[index + 3] = color[3];
+        }
+
+      /* set texture to some solid color to make sure that we aren't clearing
+       * an empty texture (note: this assumes that gegl_gpu_texture_set()
+       * works as expected)
+       */
+      gegl_gpu_texture_set (texture, NULL, components, NULL);
 
       /* clear individual subregions */
       for (cnt = 0; cnt < ARRAY_SIZE (test_cases); cnt++)
