@@ -90,6 +90,7 @@ main (gint    argc,
           }
 
       gegl_tile_unlock (tile);
+      g_free (tile_components);
     }
 
   g_free (components);
