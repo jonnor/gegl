@@ -765,15 +765,12 @@ gegl_buffer_gpu_iterate (GeglBuffer          *buffer,
   gint texture_x;
   gint copy_area_width;
 
-  /* rectangle of interest on the texture */
-  GeglRectangle texture_rect;
-
   gint cnt;
 
   for (cnt = 0; cnt < level; cnt++)
     factor *= 2;
 
-  if (roi)
+  if (roi != NULL)
     {
       original_rect.x      = (roi->x + buffer->shift_x) / factor;
       original_rect.y      = (roi->y + buffer->shift_y) / factor;
@@ -899,30 +896,45 @@ gegl_buffer_gpu_iterate (GeglBuffer          *buffer,
         }
     }
 
-  texture_rect = final_rect;
-
-  texture_rect.x = first_texture_x;
-  texture_rect.y = first_texture_y;
-
   /* "read" from abyss */
-  if (!write && !gegl_rectangle_equal (&original_rect, &texture_rect))
     {
-      GeglRegion *abyss_region   = gegl_region_rectangle (&original_rect);
-      GeglRegion *texture_region = gegl_region_rectangle (&texture_rect);
+      /* original requested rectangle on the texture */
+      GeglRectangle abyss_rect   = {
+                                     0,
+                                     0,
+                                     original_rect.width,
+                                     original_rect.height
+                                   };
 
-      GeglRectangle *abyss_rects;
-      gint rect_count;
+      /* rectangle on the texture written with actual pixel
+       * data from the buffer
+       */
+      GeglRectangle texture_rect = {
+                                     first_texture_x,
+                                     first_texture_y,
+                                     final_rect.width,
+                                     final_rect.height
+                                   };
 
-      gegl_region_subtract (abyss_region, texture_region);
-      gegl_region_destroy  (texture_region);
+      if (!write && !gegl_rectangle_equal (&abyss_rect, &texture_rect))
+        {
+          GeglRegion *abyss_region   = gegl_region_rectangle (&abyss_rect);
+          GeglRegion *texture_region = gegl_region_rectangle (&texture_rect);
 
-      gegl_region_get_rectangles (abyss_region, &abyss_rects, &rect_count);
+          GeglRectangle *abyss_rects;
+          gint rect_count;
 
-      for (cnt = 0; cnt < rect_count; cnt++)
-        gegl_gpu_texture_clear (texture, &abyss_rects[cnt]);
+          gegl_region_subtract (abyss_region, texture_region);
+          gegl_region_destroy  (texture_region);
 
-      g_free (abyss_rects);
-      gegl_region_destroy (abyss_region);
+          gegl_region_get_rectangles (abyss_region, &abyss_rects, &rect_count);
+
+          for (cnt = 0; cnt < rect_count; cnt++)
+            gegl_gpu_texture_clear (texture, &abyss_rects[cnt]);
+
+          g_free (abyss_rects);
+          gegl_region_destroy (abyss_region);
+        }
     }
 }
 
