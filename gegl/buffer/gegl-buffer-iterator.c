@@ -520,17 +520,15 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
     {
       for (no = 0; no < i->iterable_count; no++)
         {
-          gint tile_width  = i->i[no].buffer->tile_storage->tile_width;
-          gint tile_height = i->i[no].buffer->tile_storage->tile_height;
-
           gboolean direct_access
             = (i->flags[no] & GEGL_BUFFER_SCAN_COMPATIBLE
                && i->flags[no] & GEGL_BUFFER_FORMAT_COMPATIBLE
-               && i->roi[no].width == tile_width);
+               && i->roi[no].width
+                    == i->i[no].buffer->tile_storage->tile_width);
 
           gboolean gpu_direct_access
-            = (i->roi[no].height == tile_height
-               && direct_access);
+            = (direct_access && i->roi[no].height
+                 == i->i[no].buffer->tile_storage->tile_height);
 
           if (i->flags[no] & GEGL_BUFFER_READ
               || i->flags[no] & GEGL_BUFFER_WRITE)
