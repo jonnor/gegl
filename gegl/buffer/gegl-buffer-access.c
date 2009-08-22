@@ -814,7 +814,9 @@ gegl_buffer_gpu_iterate (GeglBuffer          *buffer,
   for (tile_index_y       = first_tile_index_y,
          tile_offset_y    = first_tile_offset_y,
          texture_y        = first_texture_y,
-         copy_area_height = tile_height - tile_offset_y;
+         copy_area_height = tile_index_y < last_tile_index_y
+                              ? tile_height - tile_offset_y
+                              : last_tile_offset_y - tile_offset_y + 1;
 
        tile_index_y <= last_tile_index_y;
 
@@ -828,7 +830,9 @@ gegl_buffer_gpu_iterate (GeglBuffer          *buffer,
       for (tile_index_x      = first_tile_index_x,
              tile_offset_x   = first_tile_offset_x,
              texture_x       = first_texture_x,
-             copy_area_width = tile_width - tile_offset_x;
+             copy_area_width = tile_index_x < last_tile_index_x
+                                 ? tile_width - tile_offset_x
+                                 : last_tile_offset_x - tile_offset_x + 1;
 
            tile_index_x <= last_tile_index_x;
 
