@@ -910,19 +910,18 @@ gegl_buffer_gpu_iterate (GeglBuffer          *buffer,
       GeglRegion *abyss_region   = gegl_region_rectangle (&original_rect);
       GeglRegion *texture_region = gegl_region_rectangle (&texture_rect);
 
-      GeglRectangle **abyss_rects = g_new (GeglRectangle *, 1);
+      GeglRectangle *abyss_rects;
       gint rect_count;
 
       gegl_region_subtract (abyss_region, texture_region);
       gegl_region_destroy  (texture_region);
 
-      gegl_region_get_rectangles (abyss_region, abyss_rects, &rect_count);
+      gegl_region_get_rectangles (abyss_region, &abyss_rects, &rect_count);
 
       for (cnt = 0; cnt < rect_count; cnt++)
-        {
-          gegl_gpu_texture_clear (texture, abyss_rects[cnt]);
-          g_free (abyss_rects[cnt]);
-        }
+        gegl_gpu_texture_clear (texture, &abyss_rects[cnt]);
+
+      g_free (abyss_rects);
       gegl_region_destroy (abyss_region);
     }
 }
