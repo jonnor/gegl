@@ -143,7 +143,10 @@ gegl_gpu_texture_set (GeglGpuTexture      *texture,
       Babl *fish = babl_fish ((gpointer) format,
                               (gpointer) texture->format);
 
-      gint pixel_count = roi->width * roi->height;
+      gint pixel_count = (roi != NULL)
+                           ? roi->width * roi->height
+                           : gegl_gpu_texture_get_pixel_count (texture);
+
       gint bpp         = babl_format_get_bytes_per_pixel (texture->format);
 
       buf = g_malloc (pixel_count * bpp);
@@ -156,15 +159,12 @@ gegl_gpu_texture_set (GeglGpuTexture      *texture,
                       && roi->width == texture->width
                       && roi->height == texture->height))
     {
-      gint width  = texture->width;
-      gint height = texture->height;
-
       glBindTexture (GL_TEXTURE_RECTANGLE_ARB, texture->handle);
       glTexImage2D  (GL_TEXTURE_RECTANGLE_ARB,
                      0,
                      GL_RGBA32F_ARB,
-                     width,
-                     height,
+                     texture->width,
+                     texture->height,
                      0,
                      GL_RGBA,
                      GL_FLOAT,
@@ -219,6 +219,7 @@ gegl_gpu_texture_copy (const GeglGpuTexture *src,
     }
   else
     roi = src_rect;
+
 
   if (src->format == dest->format)
     {
