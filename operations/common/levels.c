@@ -17,6 +17,8 @@
  */
 
 
+#include <GL/glew.h>
+
 #include "config.h"
 #include <glib/gi18n-lib.h>
 
@@ -38,6 +40,47 @@ gegl_chant_double (out_high, _("High output"),
 #define GEGL_CHANT_C_FILE         "levels.c"
 
 #include "gegl-chant.h"
+
+#include "gegl-gpu-types.h"
+#include "gegl-gpu-init.h"
+
+static const char* shader_program_str = "                       \
+uniform sampler2DRect pixels;                                   \
+uniform float in_offset, out_offset, scale;                     \
+                                                                \
+void main()                                                     \
+{                                                               \
+  vec4 pixel   = texture2DRect(pixels, gl_TexCoord[0].st);      \
+  vec3 color   = (pixel.rgb - in_offset) * scale + out_offset;  \
+  gl_FragColor = vec4 (color, pixel.a);                         \
+}                                                               ";
+
+static GLuint shader_program = 0;
+static GLuint pixels_param;
+static GLuint in_offset_param;
+static GLuint out_offset_param;
+static GLuint scale_param;
+
+static GLuint
+create_shader_program (void)
+{
+  GLuint shader = glCreateShader (GL_FRAGMENT_SHADER);
+  GLuint program;
+
+  glShaderSource (shader, 1, &shader_program_str, NULL);
+  glCompileShader (shader);
+
+  program = glCreateProgram ();
+  glAttachShader (program, shader);
+  glLinkProgram (program);
+
+  pixels_param = glGetUniformLocation (program, "pixels");
+  in_offset_param = glGetUniformLocation (program, "in_offset");
+  out_offset_param = glGetUniformLocation (program, "out_offset");
+  scale_param = glGetUniformLocation (program, "scale");
+
+  return program;
+}
 
 /* GeglOperationPointFilter gives us a linear buffer to operate on
  * in our requested pixel format
@@ -84,6 +127,82 @@ process (GeglOperation       *op,
   return TRUE;
 }
 
+static gboolean
+process_gpu (GeglOperation       *op,
+             GeglGpuTexture      *in,
+             GeglGpuTexture      *out,
+             glong                samples,
+             const GeglRectangle *roi)
+{
+  /* Retrieve a pointer to GeglChantO structure which contains all the
+   * chanted properties
+   */
+  GeglChantO *o          = GEGL_CHANT_PROPERTIES (op);
+  gfloat      in_range   = o->in_high - o->in_low;
+  gfloat      out_range  = o->out_high - o->out_low;
+  gfloat      in_offset  = o->in_low * 1.0;
+  gfloat      out_offset = o->out_low * 1.0;
+  gfloat      scale;
+
+  if (in_range == 0.0)
+    in_range = 0.00000001;
+
+  scale = out_range / in_range;
+
+  /* attach *out* texture to offscreen framebuffer */
+  glFramebufferTexture2DEXT (GL_FRAMEBUFFER_EXT, 
+                             GL_COLOR_ATTACHMENT0_EXT,
+                             GL_TEXTURE_RECTANGLE_ARB,
+                             out->handle,
+                             0);
+
+  /* set *out* texture as render target */
+  glDrawBuffer (GL_COLOR_ATTACHMENT0_EXT);
+
+  /* create and register shader program, all shader programs will be deleted
+   * after GEGL terminates
+   */
+  if (shader_program == 0)
+    {
+      shader_program = create_shader_program ();
+      gegl_gpu_register_shader_program (shader_program);
+    }
+  glUseProgram (shader_program);
+
+  /* setup shader parameters */
+  glActiveTexture (GL_TEXTURE0);
+  glBindTexture (GL_TEXTURE_RECTANGLE_ARB, in->handle);
+  glUniform1i (pixels_param, 0);
+  glUniform1f (in_offset_param, in_offset);
+  glUniform1f (out_offset_param, out_offset);
+  glUniform1f (scale_param, scale);
+
+  /* viewport transform for 1:1 pixel=texel=data mapping */
+  glMatrixMode (GL_PROJECTION);
+  glLoadIdentity ();
+  gluOrtho2D (0.0, roi->width, 0.0, roi->height);
+  glMatrixMode (GL_MODELVIEW);
+  glLoadIdentity ();
+  glViewport (0, 0, roi->width, roi->height);
+
+  /* make quad filled to hit every pixel/texel */
+  glPolygonMode (GL_FRONT, GL_FILL);
+
+  /* and render quad */
+  glBegin (GL_QUADS);
+    glTexCoord2f (0.0, 0.0);
+    glVertex2f (0.0, 0.0);
+    glTexCoord2f (roi->width, 0.0);
+    glVertex2f (roi->width, 0.0);
+    glTexCoord2f (roi->width, roi->height);
+    glVertex2f (roi->width, roi->height);
+    glTexCoord2f (0.0, roi->height);
+    glVertex2f (0.0, roi->height);
+  glEnd ();
+
+  return TRUE;
+}
+
 
 static void
 gegl_chant_class_init (GeglChantClass *klass)
@@ -100,6 +219,10 @@ gegl_chant_class_init (GeglChantClass *klass)
   operation_class->categories  = "color";
   operation_class->description =
         _("Remaps the intensity range of the image");
+
+  gegl_operation_class_add_processor (operation_class,
+                                      G_CALLBACK (process_gpu),
+                                      "gpu:reference");
 }
 
 #endif
