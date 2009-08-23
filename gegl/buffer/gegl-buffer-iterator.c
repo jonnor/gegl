@@ -169,6 +169,7 @@ gulp:
   if (i->tile != NULL)
     {
       gegl_tile_unlock (i->tile);
+
       g_object_unref (i->tile);
       i->tile = NULL;
 
@@ -640,6 +641,17 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
                 }
               else
                 {
+                  /* unref held tile to prevent lock contention */
+                  if (i->i[no].tile != NULL)
+                    {
+                      gegl_tile_unlock (i->i[no].tile);
+
+                      g_object_unref (i->i[no].tile);
+                      i->i[no].tile = NULL;
+
+                      i->i[no].sub_data = NULL;
+                    }
+
                   i->data[no] = iterator_buf_pool_get (i->roi[no].width,
                                                        i->roi[no].height,
                                                        i->format[no]);
@@ -669,6 +681,17 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
                 }
               else
                 {
+                  /* unref held tile to prevent lock contention */
+                  if (i->i[no].tile != NULL)
+                    {
+                      gegl_tile_unlock (i->i[no].tile);
+
+                      g_object_unref (i->i[no].tile);
+                      i->i[no].tile = NULL;
+
+                      i->i[no].gpu_data = NULL;
+                    }
+
                   i->gpu_data[no] = iterator_gpu_texture_pool_get (
                                       i->roi[no].width,
                                       i->roi[no].height,
