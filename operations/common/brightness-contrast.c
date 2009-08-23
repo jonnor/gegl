@@ -61,16 +61,16 @@ gegl_chant_double (brightness, _("Brightness"), -3.0, 3.0, 0.0,
 #include "gegl-gpu-types.h"
 #include "gegl-gpu-init.h"
 
-static const char* shader_program_str = "                       \
-uniform sampler2DRect pixels;                                   \
-uniform float brightness, contrast;                             \
-                                                                \
-void main()                                                     \
-{                                                               \
-  vec4 pixel = texture2DRect(pixels, gl_TexCoord[0].st);        \
-  vec3 color = (pixel.rgb - 0.5) * contrast + brightness + 0.5; \
-  gl_FragColor = vec4(color, pixel.a);                          \
-}                                                               ";
+static const char* shader_program_str = "                         \
+uniform sampler2DRect pixels;                                     \
+uniform float brightness, contrast;                               \
+                                                                  \
+void main()                                                       \
+{                                                                 \
+  vec4 pixel   = texture2DRect (pixels, gl_TexCoord[0].st);       \
+  vec3 color   = (pixel.rgb - 0.5) * contrast + brightness + 0.5; \
+  gl_FragColor = vec4 (color, pixel.a);                           \
+}                                                                 ";
 
 static GLuint shader_program = 0;
 static GLuint pixels_param;
