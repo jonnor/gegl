@@ -421,7 +421,7 @@ iterator_gpu_texture_pool_get (gint width,
   gint cnt;
 
   if (G_UNLIKELY (!gpu_texture_pool))
-    gpu_texture_pool = g_array_new (TRUE, TRUE, sizeof (BufInfo));
+    gpu_texture_pool = g_array_new (TRUE, TRUE, sizeof (GpuTextureInfo));
 
   for (cnt = 0; cnt < gpu_texture_pool->len; cnt++)
     {
@@ -439,7 +439,7 @@ iterator_gpu_texture_pool_get (gint width,
         }
     }
     {
-      GpuTextureInfo info = {0, NULL};
+      GpuTextureInfo info = {1, NULL};
       info.texture  = gegl_gpu_texture_new (width, height, format);
 
       g_array_append_val (gpu_texture_pool, info);
