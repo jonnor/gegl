@@ -190,12 +190,13 @@ gegl_init (gint    *argc,
 #endif
 }
 
-static gchar   *cmd_gegl_swap=NULL;
-static gchar   *cmd_gegl_cache_size=NULL;
-static gchar   *cmd_gegl_chunk_size=NULL;
-static gchar   *cmd_gegl_quality=NULL;
-static gchar   *cmd_gegl_tile_size=NULL;
-static gchar   *cmd_babl_tolerance =NULL;
+static gchar *cmd_gegl_swap        = NULL;
+static gchar *cmd_gegl_cache_size  = NULL;
+static gchar *cmd_gegl_chunk_size  = NULL;
+static gchar *cmd_gegl_quality     = NULL;
+static gchar *cmd_gegl_tile_size   = NULL;
+static gchar *cmd_babl_tolerance   = NULL;
+static gchar *cmd_gegl_enable_gpu  = NULL;
 
 static const GOptionEntry cmd_entries[]=
 {
@@ -228,6 +229,11 @@ static const GOptionEntry cmd_entries[]=
      "gegl-quality", 0, 0,
      G_OPTION_ARG_STRING, &cmd_gegl_quality,
      N_("The quality of rendering a value between 0.0(fast) and 1.0(reference)"), "<quality>"
+    },
+    {
+     "gegl-enable-gpu", 0, 0,
+     G_OPTION_ARG_STRING, &cmd_gegl_enable_gpu,
+     N_("Whether or not GPU support is enabled"), "<true|false>"
     },
     { NULL }
 };
@@ -277,6 +283,8 @@ GeglConfig *gegl_config (void)
         }
       if (gegl_swap_dir())
         config->swap = g_strdup(gegl_swap_dir ());
+      if (g_getenv ("GEGL_ENABLE_GPU") != NULL)
+        config->gpu_enabled = TRUE;
     }
   return GEGL_CONFIG (config);
 }
@@ -455,7 +463,7 @@ gegl_post_parse_hook (GOptionContext *context,
   g_type_init ();
   gegl_instrument ("gegl", "gegl_init", 0);
 
-  config = (void*)gegl_config ();
+  config = (gpointer) gegl_config ();
 
   if (cmd_gegl_swap)
     g_object_set (config, "swap", cmd_gegl_swap, NULL);
@@ -476,6 +484,14 @@ gegl_post_parse_hook (GOptionContext *context,
 
   if (cmd_babl_tolerance)
     g_object_set (config, "babl-tolerance", atof(cmd_babl_tolerance), NULL);
+
+  if (cmd_gegl_enable_gpu != NULL)
+    {
+      if (g_str_equal (cmd_gegl_enable_gpu, "true"))
+        config->gpu_enabled = TRUE;
+      else if (g_str_equal (cmd_gegl_enable_gpu, "false"))
+        config->gpu_enabled = FALSE;
+    }
 
 #ifdef GEGL_ENABLE_DEBUG
   {

@@ -37,7 +37,9 @@ enum
   PROP_SWAP,
   PROP_BABL_TOLERANCE,
   PROP_TILE_WIDTH,
-  PROP_TILE_HEIGHT
+  PROP_TILE_HEIGHT,
+
+  PROP_GPU_ENABLED
 };
 
 static void
@@ -77,6 +79,9 @@ get_property (GObject    *gobject,
       case PROP_SWAP:
         g_value_set_string (value, config->swap);
         break;
+
+      case PROP_GPU_ENABLED:
+        g_value_set_boolean (value, config->gpu_enabled);
 
       default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (gobject, property_id, pspec);
@@ -125,6 +130,9 @@ set_property (GObject      *gobject,
         if (config->swap)
          g_free (config->swap);
         config->swap = g_value_dup_string (value);
+        break;
+      case PROP_GPU_ENABLED:
+        config->gpu_enabled = g_value_get_boolean (value);
         break;
       default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (gobject, property_id, pspec);
@@ -190,6 +198,11 @@ gegl_config_class_init (GeglConfigClass *klass)
   g_object_class_install_property (gobject_class, PROP_SWAP,
                                    g_param_spec_string ("swap", "Swap", "where gegl stores it's swap files", NULL,
                                                      G_PARAM_READWRITE));
+
+
+  g_object_class_install_property (gobject_class, PROP_GPU_ENABLED,
+                                   g_param_spec_string ("gpu-enabled", "GPU-support enabled", "whether or not GPU support is enabled", FALSE,
+                                                     G_PARAM_READWRITE));
 }
 
 static void
@@ -201,4 +214,6 @@ gegl_config_init (GeglConfig *self)
   self->chunk_size  = 512 * 512;
   self->tile_width  = 64;
   self->tile_height = 128;
+
+  self->gpu_enabled = FALSE;
 }

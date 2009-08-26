@@ -44,6 +44,8 @@ struct _GeglConfig
   gdouble  babl_tolerance;
   gint     tile_width;
   gint     tile_height;
+
+  gboolean gpu_enabled;
 };
 
 struct _GeglConfigClass
