@@ -420,20 +420,23 @@ gegl_tile_lock (GeglTile        *tile,
       /*gegl_buffer_add_dirty (tile->buffer, tile->x, tile->y);*/
     }
 
-  if (lock_mode & GEGL_TILE_LOCK_GPU_READ && tile->rev > tile->gpu_rev)
+  if (gegl_gpu_is_accelerated ())
     {
-      gegl_gpu_texture_set (tile->gpu_data, NULL, tile->data,
-                            gegl_tile_get_format (tile));
+      if (lock_mode & GEGL_TILE_LOCK_GPU_READ && tile->rev > tile->gpu_rev)
+        {
+          gegl_gpu_texture_set (tile->gpu_data, NULL, tile->data,
+                                gegl_tile_get_format (tile));
 
-      tile->gpu_rev = tile->rev;
-    }
+          tile->gpu_rev = tile->rev;
+        }
 
-  if (lock_mode & GEGL_TILE_LOCK_READ && tile->gpu_rev > tile->rev)
-    {
-      gegl_gpu_texture_get (tile->gpu_data, NULL, tile->data,
-                            gegl_tile_get_format (tile));
+      if (lock_mode & GEGL_TILE_LOCK_READ && tile->gpu_rev > tile->rev)
+        {
+          gegl_gpu_texture_get (tile->gpu_data, NULL, tile->data,
+                                gegl_tile_get_format (tile));
 
-      tile->rev = tile->gpu_rev;
+          tile->rev = tile->gpu_rev;
+        }
     }
 
   tile->lock_mode = lock_mode;
