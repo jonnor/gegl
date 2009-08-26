@@ -162,11 +162,6 @@ gegl_init (gint    *argc,
   if (config)
     return;
 
-  /* initialize GPU subsystem and let it handle the program command-line
-   * first
-   */
-  gegl_gpu_init (argc, argv);
-
   /*  If any command-line actions are ever added to GEGL, then the commented
    *  out code below should be used.  Until then, we simply call the parse hook
    *  directly.
@@ -188,6 +183,9 @@ gegl_init (gint    *argc,
 
   g_option_context_free (context);
 #endif
+
+  if (config->gpu_enabled)
+    gegl_gpu_init (argc, argv);
 }
 
 static gchar *cmd_gegl_swap        = NULL;
@@ -342,12 +340,16 @@ gegl_exit (void)
   gegl_tile_cache_destroy ();
   gegl_operation_gtype_cleanup ();
   gegl_extension_handler_cleanup ();
+  gegl_buffer_iterator_cleanup ();
 
   if (module_db != NULL)
     {
       g_object_unref (module_db);
       module_db = NULL;
     }
+
+  if (gegl_gpu_is_accelerated ())
+    gegl_gpu_exit ();
 
   babl_exit ();
 
@@ -412,12 +414,6 @@ gegl_exit (void)
   config = NULL;
 
   g_printf ("\n");
-
-  /* XXX: Should probably output some debug information. Everybody else is
-   * doing it, why aren't we?
-   */
-  gegl_buffer_iterator_cleanup ();
-  gegl_gpu_exit ();
 }
 
 static void swap_clean (void);
