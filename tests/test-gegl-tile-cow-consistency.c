@@ -21,6 +21,7 @@
 
 #include "gegl.h"
 #include "gegl-utils.h"
+#include "gegl-gpu-init.h"
 #include "gegl-gpu-texture.h"
 
 #include "../../gegl/buffer/gegl-tile.h"
@@ -43,6 +44,12 @@ main (gint    argc,
   gfloat   *gpu_components;
 
   gegl_init (&argc, &argv);
+
+  if (!gegl_gpu_is_accelerated ())
+    {
+      g_warning ("GPU-support is disabled. Skipping.\n");
+      goto skip;
+    }
 
   tile = gegl_tile_new (TEXTURE_WIDTH,
                         TEXTURE_HEIGHT,
@@ -91,6 +98,7 @@ abort:
   g_object_unref (tile2);
   g_object_unref (tile);
 
+skip:
   gegl_exit ();
 
   return retval;

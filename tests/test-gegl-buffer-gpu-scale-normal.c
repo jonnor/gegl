@@ -21,6 +21,7 @@
 
 #include "gegl.h"
 #include "gegl-utils.h"
+#include "gegl-gpu-init.h"
 #include "gegl-gpu-texture.h"
 #include "gegl-buffer.h"
 
@@ -140,6 +141,12 @@ main (gint    argc,
   GeglRectangle buffer_extents = {0, 0, BUFFER_WIDTH, BUFFER_HEIGHT};
 
   gegl_init (&argc, &argv);
+
+  if (!gegl_gpu_is_accelerated ())
+    {
+      g_warning ("GPU-support is disabled. Skipping.\n");
+      goto skip;
+    }
 
   gpu_buffer = gegl_buffer_new (&buffer_extents, babl_format ("RGBA float"));
 
@@ -538,8 +545,9 @@ abort_test3:
     }
 
 abort:
-
   gegl_buffer_destroy (gpu_buffer);
+
+skip:
   gegl_exit ();
 
   return retval;

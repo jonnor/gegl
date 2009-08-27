@@ -20,6 +20,7 @@
 #include <babl/babl.h>
 
 #include "gegl.h"
+#include "gegl-gpu-init.h"
 #include "gegl-gpu-texture.h"
 
 #include "../../gegl/buffer/gegl-tile.h"
@@ -56,7 +57,8 @@ main (gint    argc,
       goto abort;
     }
 
-  if (gegl_tile_get_gpu_data (tile) != gegl_tile_get_gpu_data (tile2))
+  if (   gegl_gpu_is_accelerated ()
+      && gegl_tile_get_gpu_data (tile) != gegl_tile_get_gpu_data (tile2))
     {
       g_printerr ("Test on tile GPU data equality after tile duplication "
                   "failed. Aborting\n");
@@ -77,7 +79,8 @@ main (gint    argc,
       goto abort;
     }
 
-  if (gegl_tile_get_gpu_data (tile) == gegl_tile_get_gpu_data (tile2))
+  if (   gegl_gpu_is_accelerated ()
+      && gegl_tile_get_gpu_data (tile) == gegl_tile_get_gpu_data (tile2))
     {
       g_printerr ("Test on tile GPU data inequality after uncloning failed. "
                   "Aborting\n");

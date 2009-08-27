@@ -20,6 +20,7 @@
 
 #include "gegl.h"
 #include "gegl-utils.h"
+#include "gegl-gpu-init.h"
 #include "gegl-gpu-texture.h"
 
 #define SUCCESS 0
@@ -92,6 +93,12 @@ main (gint    argc,
 
   gegl_init (&argc, &argv);
 
+  if (!gegl_gpu_is_accelerated ())
+    {
+      g_warning ("GPU-support is disabled. Skipping.\n");
+      goto skip;
+    }
+
   texture = gegl_gpu_texture_new (TEXTURE_WIDTH,
                                   TEXTURE_HEIGHT,
                                   babl_format ("RGBA float"));
@@ -161,6 +168,7 @@ abort:
   g_free (components);
   gegl_gpu_texture_free (texture);
 
+skip:
   gegl_exit ();
 
   return retval;
