@@ -44,8 +44,10 @@
 #include "gegl-buffer-iterator.h"
 
 #include "gegl-region.h"
+#if HAVE_GPU
 #include "gegl-gpu-types.h"
 #include "gegl-gpu-texture.h"
+#endif
 
 #if ENABLE_MP
 GStaticRecMutex mutex = G_STATIC_REC_MUTEX_INIT;
@@ -218,6 +220,7 @@ gegl_buffer_set_pixel (GeglBuffer *buffer,
   }
 }
 
+#if HAVE_GPU
 static inline void
 gegl_buffer_gpu_set_pixel (GeglBuffer           *buffer,
                            gint                  x,
@@ -279,6 +282,7 @@ gegl_buffer_gpu_set_pixel (GeglBuffer           *buffer,
         }
     }
 }
+#endif
 
 static inline void
 gegl_buffer_get_pixel (GeglBuffer *buffer,
@@ -361,6 +365,7 @@ gegl_buffer_get_pixel (GeglBuffer *buffer,
   }
 }
 
+#if HAVE_GPU
 static inline void
 gegl_buffer_gpu_get_pixel (GeglBuffer     *buffer,
                            gint            x,
@@ -426,6 +431,7 @@ gegl_buffer_gpu_get_pixel (GeglBuffer     *buffer,
         }
     }
 }
+#endif
 
 /* flush any unwritten data (flushes the hot-cache of a single
  * tile used by gegl_buffer_set for 1x1 pixel sized rectangles
@@ -723,6 +729,7 @@ gegl_buffer_iterate (GeglBuffer          *buffer,
     }
 }
 
+#if HAVE_GPU
 static void inline
 gegl_buffer_gpu_iterate (GeglBuffer          *buffer,
                          const GeglRectangle *roi, /* or NULL for extent */
@@ -937,6 +944,7 @@ gegl_buffer_gpu_iterate (GeglBuffer          *buffer,
         }
     }
 }
+#endif
 
 void
 gegl_buffer_set (GeglBuffer          *buffer,
@@ -974,6 +982,7 @@ gegl_buffer_set (GeglBuffer          *buffer,
 #endif
 }
 
+#if HAVE_GPU
 void
 gegl_buffer_gpu_set (GeglBuffer           *buffer,
                      const GeglRectangle  *rect,
@@ -999,6 +1008,7 @@ gegl_buffer_gpu_set (GeglBuffer           *buffer,
   g_static_rec_mutex_unlock (&mutex);
 #endif
 }
+#endif
 
 
 
@@ -1452,6 +1462,7 @@ gegl_buffer_get (GeglBuffer          *buffer,
 #endif
 }
 
+#if HAVE_GPU
 void
 gegl_buffer_gpu_get (GeglBuffer          *buffer,
                      gdouble              scale,
@@ -1605,6 +1616,7 @@ gegl_buffer_gpu_get (GeglBuffer          *buffer,
   g_static_rec_mutex_unlock (&mutex);
 #endif
 }
+#endif
 
 const GeglRectangle *
 gegl_buffer_get_abyss (GeglBuffer *buffer)

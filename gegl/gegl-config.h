@@ -45,7 +45,9 @@ struct _GeglConfig
   gint     tile_width;
   gint     tile_height;
 
+#if HAVE_GPU
   gboolean gpu_enabled;
+#endif
 };
 
 struct _GeglConfigClass

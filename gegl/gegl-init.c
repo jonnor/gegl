@@ -94,7 +94,11 @@ guint gegl_debug_flags = 0;
 #include "buffer/gegl-buffer-private.h"
 #include "gegl-config.h"
 
+#ifdef HAVE_GPU
+
 #include "gpu/gegl-gpu-init.h"
+
+#endif
 
 
 /* if this function is made to return NULL swapping is disabled */
@@ -200,8 +204,10 @@ gegl_init (gint    *argc,
   g_option_context_free (context);
 #endif
 
+#if HAVE_GPU
   if (config->gpu_enabled)
     gegl_gpu_init (argc, argv);
+#endif
 }
 
 static gchar *cmd_gegl_swap        = NULL;
@@ -297,8 +303,10 @@ GeglConfig *gegl_config (void)
         }
       if (gegl_swap_dir())
         config->swap = g_strdup(gegl_swap_dir ());
+#if HAVE_GPU
       if (g_getenv ("GEGL_ENABLE_GPU") != NULL)
         config->gpu_enabled = TRUE;
+#endif
     }
   return GEGL_CONFIG (config);
 }
@@ -364,8 +372,10 @@ gegl_exit (void)
       module_db = NULL;
     }
 
+#if HAVE_GPU
   if (gegl_gpu_is_accelerated ())
     gegl_gpu_exit ();
+#endif
 
   babl_exit ();
 
@@ -499,10 +509,12 @@ gegl_post_parse_hook (GOptionContext *context,
 
   if (cmd_gegl_enable_gpu != NULL)
     {
+#if HAVE_GPU
       if (g_str_equal (cmd_gegl_enable_gpu, "true"))
         config->gpu_enabled = TRUE;
       else if (g_str_equal (cmd_gegl_enable_gpu, "false"))
         config->gpu_enabled = FALSE;
+#endif
     }
 
 #ifdef GEGL_ENABLE_DEBUG

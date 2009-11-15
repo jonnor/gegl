@@ -32,9 +32,11 @@
 #include "gegl-tile-storage.h"
 #include "gegl-utils.h"
 
+#if HAVE_GPU
 #include "gegl-gpu-types.h"
 #include "gegl-gpu-texture.h"
 #include "gegl-gpu-init.h"
+#endif
 
 typedef struct _GeglBufferTileIterator
 {
@@ -48,7 +50,9 @@ typedef struct _GeglBufferTileIterator
                               * buffer represented by this scan
                               */
   gpointer         sub_data; /* pointer to the data as indicated by subrect */
+#if HAVE_GPU
   GeglGpuTexture  *gpu_data; /* pointer to the tile's full GPU data */
+#endif
 
   /* used internally */
   gint             next_col;
@@ -66,8 +70,10 @@ typedef struct _GeglBufferIterator
   /* current region of interest */
   gint                    length; /* length of current data in pixels */
   gpointer                data    [GEGL_BUFFER_MAX_ITERABLES];
-  GeglGpuTexture         *gpu_data[GEGL_BUFFER_MAX_ITERABLES];
   GeglRectangle           roi     [GEGL_BUFFER_MAX_ITERABLES];
+#if HAVE_GPU
+  GeglGpuTexture         *gpu_data[GEGL_BUFFER_MAX_ITERABLES];
+#endif
 
   /* the following is private */
   gint                    iterable_count;
@@ -143,7 +149,9 @@ gegl_buffer_tile_iterator_init (_GeglBufferTileIterator *i,
 
   memset (&i->subrect, 0, sizeof (GeglRectangle));
   i->sub_data = NULL;
+#if HAVE_GPU
   i->gpu_data = NULL;
+#endif
 
   i->next_row = 0;
   i->next_col = 0;
@@ -174,7 +182,9 @@ gulp:
       i->tile = NULL;
 
       i->sub_data = NULL;
+#if HAVE_GPU
       i->gpu_data = NULL;
+#endif
     }
 
   memset (&i->subrect, 0, sizeof (GeglRectangle));
@@ -191,7 +201,9 @@ gulp:
       GeglRectangle rect = {offset_x, offset_y, 0, 0};
 
       gboolean direct_access;
+#if HAVE_GPU
       gboolean gpu_direct_access;
+#endif
 
       if (i->roi.width + offset_x - i->next_col < tile_width)
         rect.width = (i->roi.width + offset_x - i->next_col) - offset_x;
@@ -207,12 +219,18 @@ gulp:
                                  || i->lock_mode & GEGL_TILE_LOCK_WRITE)
                                 && tile_width == rect.width);
 
+#if HAVE_GPU
       gpu_direct_access = ((i->lock_mode & GEGL_TILE_LOCK_GPU_READ
                             || i->lock_mode & GEGL_TILE_LOCK_GPU_WRITE)
                            && tile_width == rect.width
                            && tile_height == rect.height);
+#endif
 
-      if (direct_access || gpu_direct_access)
+      if (direct_access 
+#if HAVE_GPU
+       || gpu_direct_access
+#endif
+       )
         {
           i->tile = gegl_tile_source_get_tile ((GeglTileSource *) buffer,
                                                gegl_tile_index (x, tile_width),
@@ -227,9 +245,10 @@ gulp:
               gint bpp = babl_format_get_bytes_per_pixel (buffer->format);
               i->sub_data = (guchar *) data + (bpp * rect.y * tile_width);
             }
-
+#if HAVE_GPU
           if (gpu_direct_access)
             i->gpu_data = gegl_tile_get_gpu_data (i->tile);
+#endif
         }
 
       i->subrect.x      = i->roi.x + i->next_col;
@@ -294,6 +313,7 @@ gegl_buffer_iterator_add (GeglBufferIterator  *iterator,
   if (flags & GEGL_BUFFER_WRITE)
     lock_mode |= GEGL_TILE_LOCK_WRITE;
 
+#if HAVE_GPU
   if (gegl_gpu_is_accelerated ())
     {
       if (flags & GEGL_BUFFER_GPU_READ)
@@ -306,6 +326,7 @@ gegl_buffer_iterator_add (GeglBufferIterator  *iterator,
      * is disabled
      */
     i->flags[self] &= ~GEGL_BUFFER_GPU_READ & ~GEGL_BUFFER_GPU_WRITE;
+#endif
 
   if (self == 0)
     {
@@ -406,6 +427,8 @@ iterator_buf_pool_release (gpointer buf)
     }
 }
 
+#if HAVE_GPU
+
 typedef struct GpuTextureInfo {
   gint            used; /* if this texture is currently allocated */
   GeglGpuTexture *texture;
@@ -462,6 +485,7 @@ iterator_gpu_texture_pool_release (GeglGpuTexture *texture)
         info->used--;
     }
 }
+#endif
 
 void
 gegl_buffer_iterator_cleanup (void)
@@ -481,6 +505,7 @@ gegl_buffer_iterator_cleanup (void)
       buf_pool = NULL;
     }
 
+#if HAVE_GPU
   if (gpu_texture_pool != NULL)
     {
       for (cnt = 0; cnt < gpu_texture_pool->len; cnt++)
@@ -496,6 +521,7 @@ gegl_buffer_iterator_cleanup (void)
       g_array_free (gpu_texture_pool, TRUE);
       gpu_texture_pool = NULL;
     }
+#endif
 }
 
 #if DEBUG_DIRECT
@@ -527,9 +553,11 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
                && i->roi[no].width
                     == i->i[no].buffer->tile_storage->tile_width);
 
+#if HAVE_GPU
           gboolean gpu_direct_access
             = (direct_access && i->roi[no].height
                  == i->i[no].buffer->tile_storage->tile_height);
+#endif
 
           if (i->flags[no] & GEGL_BUFFER_READ
               || i->flags[no] & GEGL_BUFFER_WRITE)
@@ -565,6 +593,7 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
               i->data[no] = NULL;
             }
 
+#if HAVE_GPU
           if (i->flags[no] & GEGL_BUFFER_GPU_READ
               || i->flags[no] & GEGL_BUFFER_GPU_WRITE)
             {
@@ -596,6 +625,7 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
 
               i->gpu_data[no] = NULL;
             }
+#endif
 
           memset (&i->roi[no], 0, sizeof (GeglRectangle));
         }
@@ -669,6 +699,7 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
                 }
             }
 
+#if HAVE_GPU
           if (i->flags[no] & GEGL_BUFFER_GPU_READ
               || i->flags[no] & GEGL_BUFFER_GPU_WRITE)
             {
@@ -707,6 +738,7 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
 #endif
                 }
             }
+#endif
         }
       else
         {
@@ -734,6 +766,7 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
 #endif
             }
 
+#if HAVE_GPU
           if (i->flags[no] & GEGL_BUFFER_GPU_READ
               || i->flags[no] & GEGL_BUFFER_GPU_WRITE)
             {
@@ -751,6 +784,7 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
               in_direct_read += i->roi[no].width * i->roi[no].height;
 #endif
             }
+#endif
         }
 
       i->length = i->roi[no].width * i->roi[no].height;

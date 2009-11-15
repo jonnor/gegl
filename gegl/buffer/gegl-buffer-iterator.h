@@ -40,9 +40,8 @@ typedef struct GeglBufferIterator
   gint            length;
 
   gpointer        data    [GEGL_BUFFER_MAX_ITERABLES];
-  GeglGpuTexture *gpu_data[GEGL_BUFFER_MAX_ITERABLES];
-
   GeglRectangle   roi     [GEGL_BUFFER_MAX_ITERABLES];
+  GeglGpuTexture *gpu_data[GEGL_BUFFER_MAX_ITERABLES];
 
 } GeglBufferIterator;
 

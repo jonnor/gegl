@@ -2,7 +2,11 @@ if PLATFORM_WIN32
 no_undefined = -no-undefined
 endif
 
-SUBDIRS = buffer gpu graph module operation process property-types
+SUBDIRS = buffer graph module operation process property-types
+
+if HAVE_GPU
+ SUBDIRS+= gpu
+endif
 
 AM_CPPFLAGS = \
 	-I$(top_srcdir) \
@@ -74,10 +78,13 @@ lib_LTLIBRARIES = libgegl-@GEGL_API_VERSION@.la
 libgegl_@GEGL_API_VERSION@_la_SOURCES = $(GEGL_sources) $(GEGL_public_HEADERS)
 libgegl_@GEGL_API_VERSION@_la_LIBADD = \
 	$(top_builddir)/gegl/buffer/libbuffer.la		\
-	$(top_builddir)/gegl/gpu/libgpu.la		\
 	$(top_builddir)/gegl/module/libmodule.la		\
 	$(top_builddir)/gegl/operation/liboperation.la		\
 	$(top_builddir)/gegl/graph/libgraph.la			\
 	$(top_builddir)/gegl/process/libprocess.la		\
 	$(top_builddir)/gegl/property-types/libpropertytypes.la
+
+if HAVE_GPU
+	libgegl_@GEGL_API_VERSION@_la_LIBADD += $(top_builddir)/gegl/gpu/libgpu.la
+endif
 

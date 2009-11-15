@@ -16,7 +16,9 @@
  * Copyright 2006 Øyvind Kolås <pippin@gimp.org>
  */
 
+#if 0
 #include <GL/glew.h>
+#endif
 
 #include "config.h"
 #include <glib/gi18n-lib.h>
@@ -33,6 +35,8 @@
 #define GEGLV4
 
 #include "gegl-chant.h"
+
+#if 0
 
 #include "gegl-gpu-types.h"
 #include "gegl-gpu-init.h"
@@ -66,34 +70,6 @@ create_shader_program (void)
   pixels_param = glGetUniformLocation (program, "pixels");
 
   return program;
-}
-
-static gboolean
-process (GeglOperation       *op,
-         void                *in_buf,
-         void                *out_buf,
-         glong                samples,
-         const GeglRectangle *roi)
-{
-  glong   i;
-  gfloat *in  = in_buf;
-  gfloat *out = out_buf;
-
-  for (i=0; i<samples; i++)
-    {
-      int  j;
-      for (j=0; j<3; j++)
-        {
-          gfloat c;
-          c = in[j];
-          c = 1.0 - c;
-          out[j] = c;
-        }
-      out[3]=in[3];
-      in += 4;
-      out+= 4;
-    }
-  return TRUE;
 }
 
 static gboolean
@@ -153,6 +129,36 @@ process_gpu (GeglOperation       *op,
 
   return TRUE;
 }
+#endif
+
+static gboolean
+process (GeglOperation       *op,
+         void                *in_buf,
+         void                *out_buf,
+         glong                samples,
+         const GeglRectangle *roi)
+{
+  glong   i;
+  gfloat *in  = in_buf;
+  gfloat *out = out_buf;
+
+  for (i=0; i<samples; i++)
+    {
+      int  j;
+      for (j=0; j<3; j++)
+        {
+          gfloat c;
+          c = in[j];
+          c = 1.0 - c;
+          out[j] = c;
+        }
+      out[3]=in[3];
+      in += 4;
+      out+= 4;
+    }
+  return TRUE;
+}
+
 
 #ifdef HAS_G4FLOAT
 static gboolean
@@ -199,9 +205,11 @@ gegl_chant_class_init (GeglChantClass *klass)
   gegl_operation_class_add_processor (operation_class,
                                       G_CALLBACK (process_simd), "simd");
 #endif
+#if 0
   gegl_operation_class_add_processor (operation_class,
                                       G_CALLBACK (process_gpu),
                                       "gpu:reference");
+#endif
 }
 
 #endif

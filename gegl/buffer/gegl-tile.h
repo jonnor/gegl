@@ -64,7 +64,9 @@ struct _GeglTile
                                   * a linear buffer
                                   */
   gint             size;         /* The size of the linear buffer */
+#if HAVE_GPU
   GeglGpuTexture  *gpu_data;     /* pixel data for tile, stored in the GPU */
+#endif
 
   GeglTileStorage *tile_storage; /* the buffer from which this tile was
                                   * retrieved, needed for the tile to be able
@@ -74,7 +76,9 @@ struct _GeglTile
   gint             x, y, z;
 
   guint            rev;          /* this tile's revision */
+#if HAVE_GPU
   guint            gpu_rev;      /* this tile's GPU data revision */ 
+#endif
   guint            stored_rev;   /* what revision was the tile when it was
                                   * committed to the tile_storage? (currently
                                   * set to 1 when loaded from disk)
@@ -99,7 +103,9 @@ struct _GeglTile
   GeglTile        *prev_shared;
 
   void (*destroy_notify) (gpointer        pixels,
+#if HAVE_GPU
                           GeglGpuTexture *gpu_data,
+#endif
                           gpointer        data);
 
   gpointer         destroy_notify_data;
@@ -129,8 +135,10 @@ void            gegl_tile_lock         (GeglTile *tile,
 /* get a pointer to the linear buffer of the tile */
 guchar         *gegl_tile_get_data     (GeglTile *tile);
 
+#if HAVE_GPU
 /* get a pointer to the GPU data of the tile */
 GeglGpuTexture *gegl_tile_get_gpu_data (GeglTile *tile);
+#endif
 
 /* unlock the tile notifying the tile that we're done accessing
  * the data

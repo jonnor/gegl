@@ -35,9 +35,11 @@
 #include "gegl-tile-source.h"
 #include "gegl-tile-storage.h"
 
+#if HAVE_GPU
 #include "gegl-gpu-types.h"
 #include "gegl-gpu-texture.h"
 #include "gegl-gpu-init.h"
+#endif
 
 
 G_DEFINE_TYPE (GeglTile, gegl_tile, G_TYPE_OBJECT)
@@ -116,14 +118,18 @@ set_property (GObject      *gobject,
 
 static void
 default_free (gpointer        data,
+#if HAVE_GPU
               GeglGpuTexture *gpu_data,
+#endif
               gpointer        userdata)
 {
   if (data != NULL)
     gegl_free (data);
 
+#if HAVE_GPU
   if (gpu_data != NULL)
     gegl_gpu_texture_free (gpu_data);
+#endif
 }
 
 static void
@@ -134,18 +140,26 @@ dispose (GObject *object)
   if (!gegl_tile_is_stored (tile))
     gegl_tile_store (tile);
 
-  if (tile->data != NULL || tile->gpu_data != NULL)
+  if (tile->data != NULL 
+#if HAVE_GPU 
+   || tile->gpu_data != NULL
+#endif
+   )
     {
       if (tile->next_shared == tile)
         {
           /* no clones */
           if (tile->destroy_notify)
             tile->destroy_notify (tile->data,
+#if HAVE_GPU 
                                   tile->gpu_data,
+#endif
                                   tile->destroy_notify_data);
 
           tile->data     = NULL;
+#if HAVE_GPU 
           tile->gpu_data = NULL;
+#endif
         }
       else
         {
@@ -204,12 +218,14 @@ static void
 gegl_tile_init (GeglTile *tile)
 {
   tile->data     = NULL;
-  tile->gpu_data = NULL;
 
+#if HAVE_GPU 
+  tile->gpu_data = NULL;
+  tile->gpu_rev    = 0;
+#endif
   tile->tile_storage = NULL;
 
   tile->rev        = 0;
-  tile->gpu_rev    = 0;
   tile->stored_rev = 0;
 
   tile->read_locks  = 0;
@@ -231,6 +247,7 @@ gegl_tile_dup (GeglTile *src)
 {
   GeglTile *tile = g_object_new (GEGL_TYPE_TILE, NULL);
 
+#if HAVE_GPU
   if (gegl_gpu_is_accelerated ())
     {
       if (src->rev > src->gpu_rev)
@@ -248,15 +265,16 @@ gegl_tile_dup (GeglTile *src)
           src->rev = src->gpu_rev;
         }
     }
+  tile->gpu_data = src->gpu_data;
+  tile->gpu_rev    = 1;
+#endif
 
   tile->data     = src->data;
   tile->size     = src->size;
-  tile->gpu_data = src->gpu_data;
 
   tile->tile_storage = src->tile_storage;
 
   tile->rev        = 1;
-  tile->gpu_rev    = 1;
   tile->stored_rev = 1;
 
   tile->next_shared              = src->next_shared;
@@ -277,8 +295,10 @@ gegl_tile_new (gint        width,
   tile->size = width * height * babl_format_get_bytes_per_pixel (format);
   tile->data = gegl_malloc (tile->size);
 
+#if HAVE_GPU
   if (gegl_gpu_is_accelerated ())
     tile->gpu_data = gegl_gpu_texture_new (width, height, format);
+#endif
 
   tile->stored_rev = 1;
 
@@ -315,11 +335,13 @@ gegl_tile_get_data (GeglTile *tile)
   return tile->data;
 }
 
+#if HAVE_GPU
 GeglGpuTexture *
 gegl_tile_get_gpu_data (GeglTile *tile)
 {
   return tile->gpu_data;
 }
+#endif
 
 static gpointer
 gegl_memdup (gpointer src,
@@ -345,8 +367,10 @@ gegl_tile_unclone (GeglTile *tile)
       tile->prev_shared              = tile;
       tile->next_shared              = tile;
 
+#if HAVE_GPU
       if (gegl_gpu_is_accelerated ())
         tile->gpu_data = gegl_gpu_texture_dup (tile->gpu_data);
+#endif
     }
 }
 
@@ -360,8 +384,10 @@ void
 gegl_tile_lock (GeglTile        *tile,
                 GeglTileLockMode lock_mode)
 {
+#if HAVE_GPU
   if (!gegl_gpu_is_accelerated ())
     lock_mode &= ~GEGL_TILE_LOCK_GPU_READ & ~GEGL_TILE_LOCK_GPU_WRITE;
+#endif
 
   if (tile->write_locks > 0)
     {
@@ -420,6 +446,7 @@ gegl_tile_lock (GeglTile        *tile,
       /*gegl_buffer_add_dirty (tile->buffer, tile->x, tile->y);*/
     }
 
+#if HAVE_GPU
   if (gegl_gpu_is_accelerated ())
     {
       if (lock_mode & GEGL_TILE_LOCK_GPU_READ && tile->rev > tile->gpu_rev)
@@ -438,6 +465,7 @@ gegl_tile_lock (GeglTile        *tile,
           tile->rev = tile->gpu_rev;
         }
     }
+#endif
 
   tile->lock_mode = lock_mode;
 }
@@ -486,13 +514,20 @@ gegl_tile_unlock (GeglTile *tile)
       if (tile->write_locks == 0)
         {
           guint rev     = tile->rev;
+#if HAVE_GPU
           guint gpu_rev = tile->gpu_rev;
 
           if (tile->lock_mode & GEGL_TILE_LOCK_GPU_WRITE)
             tile->gpu_rev = MAX (gpu_rev, rev) + 1;
+#endif
 
           if (tile->lock_mode & GEGL_TILE_LOCK_WRITE)
-            tile->rev = MAX (rev, gpu_rev) + 1;
+            tile->rev = 
+#if HAVE_GPU 
+              MAX (rev, gpu_rev) + 1;
+#else
+          rev + 1;
+#endif
 
           /* TODO: examine how this can be improved with h/w mipmaps */
           if (tile->z == 0)
@@ -520,13 +555,23 @@ gegl_tile_unlock (GeglTile *tile)
 gboolean
 gegl_tile_is_stored (GeglTile *tile)
 {
-  return tile->stored_rev == MAX (tile->rev, tile->gpu_rev);
+  return tile->stored_rev == 
+#if HAVE_GPU
+    MAX (tile->rev, tile->gpu_rev);
+#else
+    tile->rev;
+#endif
 }
 
 void
 gegl_tile_void (GeglTile *tile)
 {
-  tile->stored_rev   = MAX (tile->rev, tile->gpu_rev);
+  tile->stored_rev   = 
+#if HAVE_GPU
+    MAX (tile->rev, tile->gpu_rev);
+#else
+    tile->rev;
+#endif
   tile->tile_storage = NULL;
 
   if (tile->z == 0)
@@ -540,7 +585,11 @@ gegl_tile_cpy (GeglTile *src,
   gegl_tile_lock (src, GEGL_TILE_LOCK_ALL_READ);
   gegl_tile_lock (dst, GEGL_TILE_LOCK_ALL_WRITE);
 
-  default_free (dst->data, dst->gpu_data, NULL);
+  default_free (dst->data,
+#if HAVE_GPU
+   dst->gpu_data, 
+#endif
+   NULL);
 
   dst->next_shared              = src->next_shared;
   src->next_shared              = dst;
@@ -548,7 +597,9 @@ gegl_tile_cpy (GeglTile *src,
   dst->next_shared->prev_shared = dst;
 
   dst->data     = src->data;
+#if HAVE_GPU
   dst->gpu_data = src->gpu_data;
+#endif
 
   gegl_tile_unlock (dst);
   gegl_tile_unlock (src);
@@ -559,7 +610,9 @@ gegl_tile_swp (GeglTile *a,
                GeglTile *b)
 {
   guchar         *tmp_data;
+#if HAVE_GPU
   GeglGpuTexture *tmp_gpu_data;
+#endif
 
   gegl_tile_lock (a, GEGL_TILE_LOCK_ALL);
   gegl_tile_lock (b, GEGL_TILE_LOCK_ALL);
@@ -576,9 +629,11 @@ gegl_tile_swp (GeglTile *a,
   a->data  = b->data;
   b->data  = tmp_data;
 
+#if HAVE_GPU
   tmp_gpu_data = a->gpu_data;
   a->gpu_data  = b->gpu_data;
   b->gpu_data  = tmp_gpu_data;
+#endif
 
   gegl_tile_unlock (a);
   gegl_tile_unlock (b);

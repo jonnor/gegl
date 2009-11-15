@@ -13,10 +13,13 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with GEGL; if not, see <http://www.gnu.org/licenses/>.
  *
- * Copyright 2006 Øyvind Kolås <pippin@gimp.org>
+ * Copyright 2006-2009 Øyvind Kolås <pippin@gimp.org>
+ *           2009      daerd
  */
 
+#ifdef HAVE_GPU
 #include <GL/glew.h>
+#endif
 
 #include "config.h"
 #include <glib/gi18n-lib.h>
@@ -58,10 +61,15 @@ gegl_chant_double (brightness, _("Brightness"), -3.0, 3.0, 0.0,
  */
 #include "gegl-chant.h"
 
+/* XXX: the amount of boiler plate to be able to write a sahder
+ * for the op needs to be reduced.
+ */
+#if 0
+
 #include "gegl-gpu-types.h"
 #include "gegl-gpu-init.h"
 
-static const char* shader_program_str = "                         \
+static gchar* shader_program_str = "                              \
 uniform sampler2DRect pixels;                                     \
 uniform float brightness, contrast;                               \
                                                                   \
@@ -96,6 +104,7 @@ create_shader_program (void)
 
   return program;
 }
+#endif
 
 /* prepare() is called on each operation providing data to a node that
  * is requested to provide a rendered result. When prepare is called
@@ -147,6 +156,11 @@ process (GeglOperation       *op,
     }
   return TRUE;
 }
+
+/* XXX: could this perhaps be done more generically in the baseclass,
+ * allowing the implementation to be much more minimal?
+ */
+#if 0
 
 static gboolean
 process_gpu (GeglOperation       *op,
@@ -214,6 +228,8 @@ process_gpu (GeglOperation       *op,
 
   return TRUE;
 }
+
+#endif
 
 #ifdef HAS_G4FLOAT
 /* The compiler supports vector extensions allowing an version of
@@ -289,9 +305,11 @@ gegl_chant_class_init (GeglChantClass *klass)
   gegl_operation_class_add_processor (operation_class,
                                       G_CALLBACK (process_simd), "simd");
 #endif
+#if 0
   gegl_operation_class_add_processor (operation_class,
                                       G_CALLBACK (process_gpu),
                                       "gpu:reference");
+#endif
 }
 
 #endif /* closing #ifdef GEGL_CHANT_PROPERTIES ... else ... */

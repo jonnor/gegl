@@ -80,8 +80,10 @@ get_property (GObject    *gobject,
         g_value_set_string (value, config->swap);
         break;
 
+#if HAVE_GPU
       case PROP_GPU_ENABLED:
         g_value_set_boolean (value, config->gpu_enabled);
+#endif
 
       default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (gobject, property_id, pspec);
@@ -131,9 +133,11 @@ set_property (GObject      *gobject,
          g_free (config->swap);
         config->swap = g_value_dup_string (value);
         break;
+#if HAVE_GPU
       case PROP_GPU_ENABLED:
         config->gpu_enabled = g_value_get_boolean (value);
         break;
+#endif
       default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (gobject, property_id, pspec);
         break;
@@ -214,6 +218,7 @@ gegl_config_init (GeglConfig *self)
   self->chunk_size  = 512 * 512;
   self->tile_width  = 64;
   self->tile_height = 128;
-
+#if HAVE_GPU
   self->gpu_enabled = FALSE;
+#endif
 }

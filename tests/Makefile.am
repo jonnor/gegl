@@ -9,21 +9,26 @@ TESTS = \
 	test-change-processor-rect	\
 	test-proxynop-processing	\
 	test-color-op			\
-	test-gegl-rectangle \
+	test-gegl-rectangle 
+
+if HAVE_GPU
+TESTS += \
 	test-gegl-gpu-texture-clear \
 	test-gegl-gpu-texture-clear-subrect \
 	test-gegl-gpu-texture-set \
 	test-gegl-gpu-texture-set-subrect \
 	test-gegl-gpu-texture-copy \
 	test-gegl-gpu-texture-copy-subrect \
-	test-gegl-gpu-texture-dup \
+	test-gegl-gpu-texture-dup  \
 	test-gegl-tile-lock-mode-write-then-read \
-	test-gegl-tile-lock-mode-write-then-gpu-read \
 	test-gegl-tile-lock-mode-gpu-write-then-read \
+	test-gegl-tile-lock-mode-write-then-gpu-read \
 	test-gegl-tile-lock-mode-gpu-write-then-gpu-read \
+	test-gegl-buffer-gpu-scale-normal \
 	test-gegl-tile-cow \
-	test-gegl-tile-cow-consistency \
-	test-gegl-buffer-gpu-scale-normal
+	test-gegl-tile-cow-consistency 
+endif
+
 noinst_PROGRAMS = $(TESTS)
 
 # Common CPPFLAGS

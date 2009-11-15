@@ -16,8 +16,9 @@
  * Copyright 2006 Øyvind Kolås <pippin@gimp.org>
  */
 
-
+#if 0
 #include <GL/glew.h>
+#endif
 
 #include "config.h"
 #include <glib/gi18n-lib.h>
@@ -40,6 +41,8 @@ gegl_chant_double (out_high, _("High output"),
 #define GEGL_CHANT_C_FILE         "levels.c"
 
 #include "gegl-chant.h"
+
+#if 0
 
 #include "gegl-gpu-types.h"
 #include "gegl-gpu-init.h"
@@ -82,50 +85,6 @@ create_shader_program (void)
   return program;
 }
 
-/* GeglOperationPointFilter gives us a linear buffer to operate on
- * in our requested pixel format
- */
-static gboolean
-process (GeglOperation       *op,
-         void                *in_buf,
-         void                *out_buf,
-         glong                n_pixels,
-         const GeglRectangle *roi)
-{
-  GeglChantO *o = GEGL_CHANT_PROPERTIES (op);
-  gfloat     *in_pixel;
-  gfloat     *out_pixel;
-  gfloat      in_range;
-  gfloat      out_range;
-  gfloat      in_offset;
-  gfloat      out_offset;
-  gfloat      scale;
-  glong       i;
-
-  in_pixel = in_buf;
-  out_pixel = out_buf;
-
-  in_offset = o->in_low * 1.0;
-  out_offset = o->out_low * 1.0;
-  in_range = o->in_high-o->in_low;
-  out_range = o->out_high-o->out_low;
-
-  if (in_range == 0.0)
-    in_range = 0.00000001;
-
-  scale = out_range/in_range;
-
-  for (i=0; i<n_pixels; i++)
-    {
-      int c;
-      for (c=0;c<3;c++)
-        out_pixel[c] = (in_pixel[c]- in_offset) * scale + out_offset;
-      out_pixel[3] = in_pixel[3];
-      out_pixel += 4;
-      in_pixel += 4;
-    }
-  return TRUE;
-}
 
 static gboolean
 process_gpu (GeglOperation       *op,
@@ -203,6 +162,53 @@ process_gpu (GeglOperation       *op,
   return TRUE;
 }
 
+#endif
+
+
+/* GeglOperationPointFilter gives us a linear buffer to operate on
+ * in our requested pixel format
+ */
+static gboolean
+process (GeglOperation       *op,
+         void                *in_buf,
+         void                *out_buf,
+         glong                n_pixels,
+         const GeglRectangle *roi)
+{
+  GeglChantO *o = GEGL_CHANT_PROPERTIES (op);
+  gfloat     *in_pixel;
+  gfloat     *out_pixel;
+  gfloat      in_range;
+  gfloat      out_range;
+  gfloat      in_offset;
+  gfloat      out_offset;
+  gfloat      scale;
+  glong       i;
+
+  in_pixel = in_buf;
+  out_pixel = out_buf;
+
+  in_offset = o->in_low * 1.0;
+  out_offset = o->out_low * 1.0;
+  in_range = o->in_high-o->in_low;
+  out_range = o->out_high-o->out_low;
+
+  if (in_range == 0.0)
+    in_range = 0.00000001;
+
+  scale = out_range/in_range;
+
+  for (i=0; i<n_pixels; i++)
+    {
+      int c;
+      for (c=0;c<3;c++)
+        out_pixel[c] = (in_pixel[c]- in_offset) * scale + out_offset;
+      out_pixel[3] = in_pixel[3];
+      out_pixel += 4;
+      in_pixel += 4;
+    }
+  return TRUE;
+}
 
 static void
 gegl_chant_class_init (GeglChantClass *klass)
@@ -220,9 +226,11 @@ gegl_chant_class_init (GeglChantClass *klass)
   operation_class->description =
         _("Remaps the intensity range of the image");
 
+#if 0
   gegl_operation_class_add_processor (operation_class,
                                       G_CALLBACK (process_gpu),
                                       "gpu:reference");
+#endif
 }
 
 #endif

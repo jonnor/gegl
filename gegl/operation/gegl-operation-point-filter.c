@@ -82,27 +82,40 @@ gegl_operation_point_filter_process (GeglOperation       *operation,
 
   if (result->width > 0 && result->height > 0)
     {
+#if HAVE_GPU
       GeglOperationPointFilterGpuProcessor gpu_process
         = (gpointer) gegl_operation_class_get_gpu_processor (operation_class);
 
       gboolean use_gpu = (gegl_gpu_is_accelerated () && gpu_process != NULL);
+#endif
 
       GeglBufferIterator *i = gegl_buffer_iterator_new (
                                 output,
                                 result,
                                 out_format,
+#if HAVE_GPU
                                 use_gpu
                                   ? GEGL_BUFFER_GPU_WRITE
-                                  : GEGL_BUFFER_WRITE);
+                                  : GEGL_BUFFER_WRITE
+#else
+                                  GEGL_BUFFER_WRITE
+#endif
+                                  );
 
       gint read  = gegl_buffer_iterator_add (i,
                                              input,
                                              result,
                                              in_format,
+#if HAVE_GPU
                                              use_gpu
                                                ? GEGL_BUFFER_GPU_READ
-                                               : GEGL_BUFFER_READ);
+                                               : GEGL_BUFFER_READ
+#else
+                                               GEGL_BUFFER_READ
+#endif
+                                               );
 
+#if HAVE_GPU
       if (use_gpu)
         {
           while (gegl_buffer_iterator_next (i))
@@ -114,13 +127,16 @@ gegl_operation_point_filter_process (GeglOperation       *operation,
         }
       else
         {
+#endif
           while (gegl_buffer_iterator_next (i))
             point_filter_class->process (operation,
                                          i->data[read],
                                          i->data[0],
                                          i->length,
                                          &i->roi[0]);
+#if HAVE_GPU
         }
+#endif
 
       gegl_buffer_iterator_free (i);
     }
