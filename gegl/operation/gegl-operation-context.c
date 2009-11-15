@@ -314,15 +314,13 @@ gegl_operation_context_get_source (GeglOperationContext *context,
   GeglOperation  *operation;
   GeglBuffer     *real_input;
   GeglBuffer     *input;
-  GeglRectangle   input_request;
  
   operation = context->operation;
-  input_request = gegl_operation_get_required_for_output (operation, padname, &context->need_rect);
 
   real_input = GEGL_BUFFER (gegl_operation_context_get_object (context, padname));
   if (!real_input)
     return NULL;
-  input = gegl_buffer_create_sub_buffer (real_input, &input_request);
+  input = g_object_ref (real_input);
   return input;
 }
 
@@ -386,7 +384,7 @@ gegl_operation_context_get_target (GeglOperationContext *context,
        */
       if (gegl_rectangle_contains (gegl_buffer_get_extent (cache), result))
         {
-          output = gegl_buffer_create_sub_buffer (cache, result);
+          output = g_object_ref (cache);
         }
       else
         {

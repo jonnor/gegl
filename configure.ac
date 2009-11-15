@@ -13,18 +13,17 @@ dnl    set GEGL_BINARY_AGE _and_ GEGL_INTERFACE_AGE to 0.
 
 
 m4_define([gegl_major_version], [0])
-m4_define([gegl_minor_version], [0])
-m4_define([gegl_micro_version], [23])
+m4_define([gegl_minor_version], [1])
+m4_define([gegl_micro_version], [1])
 m4_define([gegl_real_version],
           [gegl_major_version.gegl_minor_version.gegl_micro_version])
 m4_define([gegl_version], [gegl_real_version])
 
 dnl Number of releases since we've added interfaces
-m4_define([gegl_interface_age], [0])
+m4_define([gegl_interface_age], [1])
 m4_define([gegl_binary_age],
           [m4_eval(100 * gegl_minor_version + gegl_micro_version)])
 
-dnl The X.Y in -lgegl-X.Y line. This is expected to stay 0.0 until Gegl 1.
 m4_define([gegl_api_version], [gegl_major_version.gegl_minor_version])
 
 m4_define([stability_version_number],
@@ -38,7 +37,7 @@ m4_define([gegl_stable],
 m4_define([gimp_full_name], [Generic Graphical Library])
 
 # required versions of external libraries
-m4_define([babl_required_version], [0.0.23])
+m4_define([babl_required_version], [0.1.0])
 m4_define([glib_required_version], [2.16.1])
 m4_define([gtk_required_version], [2.8.6])
 m4_define([lua_required_version], [5.1.0])
@@ -54,6 +53,11 @@ m4_define([graphviz_required_version], [0.0.0])
 
 AC_INIT(gegl, gegl_major_version.gegl_minor_version.gegl_micro_version)
 AC_CONFIG_SRCDIR([gegl/gegl.h])
+
+# Enable silent build rules by default, requires at least
+# Automake-1.11. Disable by either passing --disable-silent-rules to
+# configure or passing V=1 to make
+m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
 dnl ==========================================================================
 dnl                              Versioning              

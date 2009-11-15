@@ -54,6 +54,8 @@ static void      gegl_processor_get_property (GObject               *gobject,
                                               guint                  prop_id,
                                               GValue                *value,
                                               GParamSpec            *pspec);
+static void      gegl_processor_set_node     (GeglProcessor         *processor,
+                                              GeglNode              *node);
 static GObject * gegl_processor_constructor  (GType                  type,
                                               guint                  n_params,
                                               GObjectConstructParam *params);
@@ -148,32 +150,6 @@ gegl_processor_constructor (GType                  type,
   object    = G_OBJECT_CLASS (gegl_processor_parent_class)->constructor (type, n_params, params);
   processor = GEGL_PROCESSOR (object);
 
-  /* if the processor's node is a sink operation then get the producer node
-   * and set up the region (unless all is going to be needed) */
-  if (processor->node->operation &&
-      g_type_is_a (G_OBJECT_TYPE (processor->node->operation),
-                   GEGL_TYPE_OPERATION_SINK))
-    {
-      processor->input = gegl_node_get_producer (processor->node, "input", NULL);
-      if (!gegl_operation_sink_needs_full (processor->node->operation))
-        {
-          processor->valid_region = gegl_region_new ();
-        }
-      else
-        {
-          processor->valid_region = NULL;
-        }
-    }
-  /* If the processor's node is not a sink operation, then just use it as
-   * an input, and set the region to NULL */
-  else
-    {
-      processor->input = processor->node;
-      processor->valid_region = NULL;
-    }
-
-  g_object_ref (processor->input);
-
   processor->queued_region = gegl_region_new ();
 
   return object;
@@ -218,11 +194,7 @@ gegl_processor_set_property (GObject      *gobject,
   switch (property_id)
     {
       case PROP_NODE:
-        if (self->node)
-          {
-            g_object_unref (self->node);
-          }
-        self->node = GEGL_NODE (g_value_dup_object (value));
+        gegl_processor_set_node (self, g_value_dup_object (value));
         break;
 
       case PROP_CHUNK_SIZE:
@@ -270,8 +242,52 @@ gegl_processor_get_property (GObject    *gobject,
     }
 }
 
-/* Sets the processor->rectangle to the given rectangle (or the node bounding
- * box if rectangle is NULL) and removes any dirty_rectangles */
+static void
+gegl_processor_set_node (GeglProcessor *processor,
+                         GeglNode      *node)
+{
+  g_return_if_fail (GEGL_IS_NODE (node));
+  g_return_if_fail (GEGL_IS_OPERATION (node->operation));
+
+  if (processor->node)
+    g_object_unref (processor->node);
+  processor->node = g_object_ref (node);
+
+  /* if the processor's node is a sink operation then get the producer node
+   * and set up the region (unless all is going to be needed) */
+  if (processor->node->operation &&
+      g_type_is_a (G_OBJECT_TYPE (processor->node->operation),
+                   GEGL_TYPE_OPERATION_SINK))
+    {
+      processor->input = gegl_node_get_producer (processor->node, "input", NULL);
+      if (!gegl_operation_sink_needs_full (processor->node->operation))
+        {
+          processor->valid_region = gegl_region_new ();
+        }
+      else
+        {
+          processor->valid_region = NULL;
+        }
+    }
+  /* If the processor's node is not a sink operation, then just use it as
+   * an input, and set the region to NULL */
+  else
+    {
+      processor->input = processor->node;
+      processor->valid_region = NULL;
+    }
+
+  g_object_ref (processor->input);
+}
+
+
+
+
+/* Sets the processor->rectangle to the given rectangle (or the node
+ * bounding box if rectangle is NULL) and removes any
+ * dirty_rectangles, then updates node context_id with result rect and
+ * need rect
+ */
 void
 gegl_processor_set_rectangle (GeglProcessor       *processor,
                               const GeglRectangle *rectangle)
@@ -285,11 +301,14 @@ gegl_processor_set_rectangle (GeglProcessor       *processor,
       rectangle          = &input_bounding_box;
     }
 
+  GEGL_NOTE (GEGL_DEBUG_PROCESS, "gegl_processor_set_rectangle() node = %s rectangle = %d, %d %d×%d\n",
+             gegl_node_get_debug_name (processor->node),
+             rectangle->x, rectangle->y, rectangle->width, rectangle->height);
+
   /* if the processor's rectangle isn't already set to the node's bounding box,
    * then set it and remove processor->dirty_rectangles (set to NULL)  */
   if (! gegl_rectangle_equal (&processor->rectangle, rectangle))
     {
-
 #if 0
     /* XXX: this is a large penalty hit, so we assume the rectangle
      * we're getting is part of the bounding box we're hitting */
@@ -307,62 +326,34 @@ gegl_processor_set_rectangle (GeglProcessor       *processor,
           g_slice_free (GeglRectangle, iter->data);
         }
       g_slist_free (processor->dirty_rectangles);
-
       processor->dirty_rectangles = NULL;
     }
-}
-
-/* creates a new processor and sets up it's context (if the node is
- * a operation sink wich needs the full content */
-GeglProcessor *
-gegl_node_new_processor (GeglNode            *node,
-                         const GeglRectangle *rectangle)
-{
-  GeglProcessor *processor;
-
-  g_return_val_if_fail (GEGL_IS_NODE (node), NULL);
-
-  processor = g_object_new (GEGL_TYPE_PROCESSOR,
-                            "node",      node,
-                            "rectangle", rectangle,
-                            NULL);
-
-  if (rectangle)
-    GEGL_NOTE (GEGL_DEBUG_PROCESS, "gegl_node_new_processor() node = %s rectangle = %d, %d %d×%d\n",
-               gegl_node_get_debug_name (node),
-               rectangle->x, rectangle->y, rectangle->width, rectangle->height);
-
-  /* FIXME: Look for what pads that are available rather than looking
-   * at what type of operation we are dealing with
-   */
 
   /* if the node's operation is a sink and it needs the full content then
    * a context will be set up together with a cache and
    * needed and result rectangles */
-  if (node->operation                          &&
-      GEGL_IS_OPERATION_SINK (node->operation) &&
-      gegl_operation_sink_needs_full (node->operation))
+  if (GEGL_IS_OPERATION_SINK (processor->node->operation) &&
+      gegl_operation_sink_needs_full (processor->node->operation))
     {
       GeglCache *cache;
+      GValue     value = { 0, };
 
       cache = gegl_node_get_cache (processor->input);
 
-      processor->context = gegl_node_add_context (node, cache);
-      {
-        GValue value = { 0, };
-        g_value_init (&value, GEGL_TYPE_BUFFER);
-        g_value_set_object (&value, cache);
-        gegl_operation_context_set_property (processor->context, "input", &value);
-        g_value_unset (&value);
-      }
+      if (!gegl_node_get_context (processor->node, cache))
+        processor->context = gegl_node_add_context (processor->node, cache);
+
+      g_value_init (&value, GEGL_TYPE_BUFFER);
+      g_value_set_object (&value, cache);
+      gegl_operation_context_set_property (processor->context, "input", &value);
+      g_value_unset (&value);
+
 
       gegl_operation_context_set_result_rect (processor->context,
                                               &processor->rectangle);
       gegl_operation_context_set_need_rect   (processor->context,
                                               &processor->rectangle);
     }
-
-  return processor;
 }
 
 /* Will generate band_sizes that are adapted to the size of the tiles */
@@ -754,4 +745,16 @@ void
 gegl_processor_destroy (GeglProcessor *processor)
 {
   g_object_unref (processor);
+}
+
+GeglProcessor *
+gegl_node_new_processor (GeglNode            *node,
+                         const GeglRectangle *rectangle)
+{
+  g_return_val_if_fail (GEGL_IS_NODE (node), NULL);
+
+  return g_object_new (GEGL_TYPE_PROCESSOR,
+                       "node",      node,
+                       "rectangle", rectangle,
+                       NULL);
 }

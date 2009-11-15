@@ -71,14 +71,18 @@ gegl_operation_point_composer_init (GeglOperationPointComposer *self)
 
 }
 
+gboolean gegl_can_passthrough (GeglOperation       *operation,
+                               GeglBuffer          *input,
+                               const GeglRectangle *result);
+
 /* we replicate the process function from GeglOperationComposer to be
  * able to bail out earlier for some common processing time pitfalls
  */
 static gboolean
-gegl_operation_composer_process2 (GeglOperation       *operation,
-                                  GeglOperationContext     *context,
-                                  const gchar         *output_prop,
-                                  const GeglRectangle *result)
+gegl_operation_composer_process2 (GeglOperation        *operation,
+                                  GeglOperationContext *context,
+                                  const gchar          *output_prop,
+                                  const GeglRectangle  *result)
 {
   GeglOperationComposerClass *klass   = GEGL_OPERATION_COMPOSER_GET_CLASS (operation);
   GeglBuffer                 *input;
@@ -95,79 +99,20 @@ gegl_operation_composer_process2 (GeglOperation       *operation,
   input = gegl_operation_context_get_source (context, "input");
   aux   = gegl_operation_context_get_source (context, "aux");
 
-  /* we could be even faster by not alway writing to this buffer, that
-   * would potentially break other assumptions we want to make from the
-   * GEGL core so we avoid doing that
-   */
-  output = gegl_operation_context_get_target (context, "output");
-
-
-  if (input != NULL ||
-      aux != NULL)
+  if (gegl_can_passthrough (operation, input, result))
+    {
+      output = g_object_ref (input);
+      gegl_operation_context_take_object (context, "output", G_OBJECT (output));
+    }
+  else
+    output = gegl_operation_context_get_target (context, "output");
+    
     {
       gboolean done = FALSE;
 
       if (result->width == 0 ||
           result->height == 0)
         done = TRUE;
-
-#if 1  /* this can be set to 0, and everything should work normally,
-          but some fast paths would not be taken */
-      if (!strcmp (gegl_node_get_operation (operation->node), "gegl:over"))
-        {
-          /* these optimizations probably apply to more than over */
-
-          if ((result->width > 0) && (result->height > 0))
-
-          if (input && aux==NULL)
-            {
-              gegl_buffer_copy (input, result, output, result);
-              done = TRUE;
-            }
-
-          /* SKIP_EMPTY_IN */
-          if(!done)
-            {
-              const GeglRectangle *in_abyss = NULL;
-
-              if (input)
-                in_abyss = gegl_buffer_get_abyss (input);
-
-              if ((!input ||
-                   !gegl_rectangle_intersect (NULL, in_abyss, result)) &&
-                  aux)
-                {
-                  const GeglRectangle *aux_abyss;
-                  aux_abyss = gegl_buffer_get_abyss (aux);
-
-                  if (!gegl_rectangle_intersect (NULL, aux_abyss, result))
-                    {
-                      done = TRUE;
-                    }
-                  else
-                    {
-                      gegl_buffer_copy (aux, result, output, result);
-                      done = TRUE;
-                    }
-                }
-            }
-/* SKIP_EMPTY_AUX */
-            if(!done)
-              {
-              const GeglRectangle *aux_abyss = NULL;
-
-              if (aux)
-                aux_abyss = gegl_buffer_get_abyss (aux);
-
-              if (!aux ||
-                  (aux && !gegl_rectangle_intersect (NULL, aux_abyss, result)))
-                {
-                  gegl_buffer_copy (input, result, output, result);
-                  done = TRUE;
-                }
-            }
-      }
-#endif
 
       success = done;
       if (!done)
@@ -181,11 +126,6 @@ gegl_operation_composer_process2 (GeglOperation       *operation,
          g_object_unref (input);
       if (aux)
          g_object_unref (aux);
-    }
-  else
-    {
-      g_warning ("%s received NULL input and aux",
-                 gegl_node_get_debug_name (operation->node));
     }
 
   return success;

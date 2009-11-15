@@ -43,12 +43,17 @@ if HAVE_ASCIIDOC
 HTML_FILES += index.html development.html
 endif
 
-EXTRA_DIST= 			\
-	ChangeLog		\
-	gegl.css  		\
-	gegl.devhelp		\
-	devhelp.css		\
-	index-static.txt.in	\
+EXTRA_DIST = \
+	ChangeLog			\
+	development.txt			\
+	devhelp.css			\
+	gegl.css  			\
+	gegl.devhelp			\
+	images/GEGL.png			\
+	images/GEGL.svg			\
+	images/gaussian-blur-graph.png	\
+	images/gegl.ico			\
+	index-static.txt.in		\
 	$(HTML_FILES)
 
 BUILT_EXTRA_DIST = index.html class-hierarchy.html operations.html
@@ -59,13 +64,13 @@ MAINTAINERCLEANFILES = $(BUILT_EXTRA_DIST)
 
 all-local: $(HTML_FILES)
 
-operations.html: $(top_builddir)/tools/operation_reference $(top_srcdir)/operations/*/*.c
+operations.html: $(top_builddir)/tools/operation_reference$(EXEEXT) $(top_srcdir)/operations/*/*.c
 	GEGL_SWAP=RAM GEGL_PATH=$(top_builddir)/operations \
-	$(top_builddir)/tools/operation_reference --ops-html > $@
+	$(top_builddir)/tools/operation_reference$(EXEEXT) --ops-html > $@
 
-class-hierarchy.html: $(top_builddir)/tools/introspect $(top_srcdir)/operations/*/*.c $(top_srcdir)/gegl/*.c
+class-hierarchy.html: $(top_builddir)/tools/introspect$(EXEEXT) $(top_srcdir)/operations/*/*.c $(top_srcdir)/gegl/*.c
 	GEGL_SWAP=RAM GEGL_PATH=$(top_builddir)/operations \
-	$(top_builddir)/tools/introspect > $@
+	$(top_builddir)/tools/introspect$(EXEEXT) > $@
 
 gegl.h.html: $(top_srcdir)/gegl/gegl.h
 if HAVE_ENSCRIPT
@@ -152,7 +157,7 @@ if HAVE_RUBY
 	    $@
 endif
 
-images/inheritance.png: $(top_srcdir)/docs/Makefile
+images/inheritance.png: Makefile
 if HAVE_RUBY
 if HAVE_DOT
 	$(top_srcdir)/tools/gobj2dot.rb $(top_srcdir) | $(DOT) -Tpng > $(top_srcdir)/docs/images/inheritance.png
@@ -164,7 +169,7 @@ index.html: index-static.txt		\
 	gegl.css			\
 	$(top_srcdir)/NEWS		\
 	$(top_srcdir)/examples/hello-world.c \
-	$(top_builddir)/bin/gegl	\
+	$(top_builddir)/bin/gegl$(EXEEXT)	\
 	Makefile.am
 if HAVE_ASCIIDOC
 	@echo "HTML: $@"
