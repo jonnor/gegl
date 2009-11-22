@@ -48,6 +48,9 @@ struct _GeglConfig
 #if HAVE_GPU
   gboolean gpu_enabled;
 #endif
+#if ENABLE_MT
+  gint     threads;
+#endif
 };
 
 struct _GeglConfigClass

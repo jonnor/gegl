@@ -13,7 +13,7 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with GEGL; if not, see <http://www.gnu.org/licenses/>.
  *
- * Copyright 2006,2007 Øyvind Kolås <pippin@gimp.org>
+ * Copyright 2006-2009 Øyvind Kolås <pippin@gimp.org>
  */
 
 #include "config.h"
@@ -40,80 +40,6 @@
 #include "gegl-gpu-texture.h"
 #include "gegl-gpu-init.h"
 #endif
-
-
-G_DEFINE_TYPE (GeglTile, gegl_tile, G_TYPE_OBJECT)
-enum
-{
-  PROP_0,
-  PROP_X,
-  PROP_Y,
-  PROP_Z,
-  PROP_SIZE
-};
-static GObjectClass *parent_class = NULL;
-
-
-static void
-get_property (GObject    *gobject,
-              guint       property_id,
-              GValue     *value,
-              GParamSpec *pspec)
-{
-  GeglTile *tile = GEGL_TILE (gobject);
-
-  switch (property_id)
-    {
-      case PROP_X:
-        g_value_set_int (value, tile->x);
-        break;
-
-      case PROP_Y:
-        g_value_set_int (value, tile->y);
-        break;
-
-      case PROP_Z:
-        g_value_set_int (value, tile->z);
-        break;
-
-      case PROP_SIZE:
-        g_value_set_int (value, tile->size);
-        break;
-
-      default:
-        G_OBJECT_WARN_INVALID_PROPERTY_ID (gobject, property_id, pspec);
-        break;
-    }
-}
-
-static void
-set_property (GObject      *gobject,
-              guint         property_id,
-              const GValue *value,
-              GParamSpec   *pspec)
-{
-  GeglTile *tile = GEGL_TILE (gobject);
-
-  switch (property_id)
-    {
-      case PROP_X:
-        tile->x = g_value_get_int (value);
-        return;
-
-      case PROP_Y:
-        tile->y = g_value_get_int (value);
-        return;
-
-      case PROP_Z:
-        tile->z = g_value_get_int (value);
-        return;
-
-      default:
-        G_OBJECT_WARN_INVALID_PROPERTY_ID (gobject, property_id, pspec);
-        break;
-    }
-}
-
 #include "gegl-utils.h"
 
 static void
@@ -132,10 +58,16 @@ default_free (gpointer        data,
 #endif
 }
 
-static void
-dispose (GObject *object)
+GeglTile *gegl_tile_ref (GeglTile *tile)
 {
-  GeglTile *tile = (GeglTile *) object;
+  g_atomic_int_inc (&tile->ref_count);
+  return tile;
+}
+
+void gegl_tile_unref (GeglTile *tile)
+{
+  if (!g_atomic_int_dec_and_test (&tile->ref_count))
+    return;
 
   if (!gegl_tile_is_stored (tile))
     gegl_tile_store (tile);
@@ -168,62 +100,30 @@ dispose (GObject *object)
         }
     }
 
-#if ENABLE_MP
+#if ENABLE_MT
   if (tile->mutex)
     {
-      g_static_mutex_free (tile->mutex);
+      g_mutex_free (tile->mutex);
       tile->mutex = NULL;
     }
 #endif
-
-  (*G_OBJECT_CLASS (parent_class)->dispose) (object);
+  g_slice_free (GeglTile, tile);
 }
 
-static void
-gegl_tile_class_init (GeglTileClass *class)
+GeglTile *
+gegl_tile_new_bare (void)
 {
-  GObjectClass *gobject_class = G_OBJECT_CLASS (class);
+  GeglTile *tile = g_slice_new0 (GeglTile);
 
-  gobject_class->set_property = set_property;
-  gobject_class->get_property = get_property;
-  gobject_class->dispose      = dispose;
-  parent_class                = g_type_class_peek_parent (class);
+  tile->ref_count = 1;
+  tile->tile_storage = NULL;
+  tile->stored_rev = 0;
 
-  g_object_class_install_property (
-    gobject_class, PROP_X,
-    g_param_spec_int ("x", "x", "Horizontal index",
-                      G_MININT / 2, G_MAXINT / 2, 0,
-                      G_PARAM_READWRITE));
-
-  g_object_class_install_property (
-    gobject_class, PROP_Y,
-    g_param_spec_int ("y", "y", "Vertical index",
-                      G_MININT / 2, G_MAXINT / 2, 0,
-                      G_PARAM_READWRITE));
-
-  g_object_class_install_property (
-    gobject_class, PROP_Z,
-    g_param_spec_int ("z", "z", "Pyramid level 0=100% 1=50% 2=25%",
-                      0, 256, 0,
-                      G_PARAM_READWRITE));
-
-  g_object_class_install_property (
-    gobject_class, PROP_SIZE,
-    g_param_spec_int ("size", "size", "size of linear memory buffer in bytes.",
-                      0, 0, 0,
-                      G_PARAM_READABLE));
-}
-
-static void
-gegl_tile_init (GeglTile *tile)
-{
   tile->data     = NULL;
-
 #if HAVE_GPU 
   tile->gpu_data = NULL;
   tile->gpu_rev    = 0;
 #endif
-  tile->tile_storage = NULL;
 
   tile->rev        = 0;
   tile->stored_rev = 0;
@@ -235,17 +135,19 @@ gegl_tile_init (GeglTile *tile)
   tile->next_shared = tile;
   tile->prev_shared = tile;
 
-#if ENABLE_MP
-  tile->lock = g_mutex_new ();
+#if ENABLE_MT
+  tile->mutex = g_mutex_new ();
 #endif
 
   tile->destroy_notify = default_free;
+
+  return tile;
 }
 
 GeglTile *
 gegl_tile_dup (GeglTile *src)
 {
-  GeglTile *tile = g_object_new (GEGL_TYPE_TILE, NULL);
+  GeglTile *tile = gegl_tile_new_bare ();
 
 #if HAVE_GPU
   if (gegl_gpu_is_accelerated ())
@@ -280,7 +182,19 @@ gegl_tile_dup (GeglTile *src)
   tile->next_shared              = src->next_shared;
   src->next_shared               = tile;
   tile->prev_shared              = src;
+#if ENABLE_MT
+  if (tile->next_shared != src)
+    {
+      g_mutex_lock (tile->next_shared->mutex);
+    }
+#endif
   tile->next_shared->prev_shared = tile;
+#if ENABLE_MT
+  if (tile->next_shared != src)
+    {
+      g_mutex_unlock (tile->next_shared->mutex);
+    }
+#endif
 
   return tile;
 }
@@ -290,7 +204,7 @@ gegl_tile_new (gint        width,
                gint        height,
                const Babl *format)
 {
-  GeglTile *tile = g_object_new (GEGL_TYPE_TILE, NULL);
+  GeglTile *tile = gegl_tile_new_bare ();
 
   tile->size = width * height * babl_format_get_bytes_per_pixel (format);
   tile->data = gegl_malloc (tile->size);
@@ -380,6 +294,8 @@ static gint total_write_unlocks = 0;
 static gint total_read_locks    = 0;
 static gint total_read_unlocks  = 0;
 
+void gegl_bt (void);
+
 void
 gegl_tile_lock (GeglTile        *tile,
                 GeglTileLockMode lock_mode)
@@ -421,8 +337,8 @@ gegl_tile_lock (GeglTile        *tile,
 
   if (lock_mode != GEGL_TILE_LOCK_NONE)
     {
-#if ENABLE_MP
-      g_static_mutex_lock (tile->mutex);
+#if ENABLE_MT
+      g_mutex_lock (tile->mutex);
 #endif
     }
   else
@@ -545,8 +461,7 @@ gegl_tile_unlock (GeglTile *tile)
 
       tile->read_locks--;
     }
-
-#if ENABLE_MP
+#if ENABLE_MT
   g_mutex_unlock (tile->mutex);
 #endif
   tile->lock_mode = GEGL_TILE_LOCK_NONE;
@@ -620,7 +535,7 @@ gegl_tile_swp (GeglTile *a,
   gegl_tile_unclone (a);
   gegl_tile_unclone (b);
 
-/*  gegl_buffer_add_dirty (a->buffer, a->x, a->y);
+/* gegl_buffer_add_dirty (a->buffer, a->x, a->y);
    gegl_buffer_add_dirty (b->buffer, b->x, b->y);*/
 
   g_assert (a->size == b->size);

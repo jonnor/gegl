@@ -71,10 +71,12 @@
 #include "gegl-buffer-index.h"
 #include "gegl-config.h"
 
+//#define GEGL_BUFFER_DEBUG_ALLOCATIONS
+
 /* #define GEGL_BUFFER_DEBUG_ALLOCATIONS to print allocation stack
  * traces for leaked GeglBuffers using GNU C libs backtrace_symbols()
  */
-#ifdef GEGL_BUFFER_DEBUG_ALLOCATIONS
+#ifndef G_OS_WIN32
 #include <execinfo.h>
 #endif
 
@@ -373,7 +375,7 @@ gegl_buffer_dispose (GObject *object)
 
   if (buffer->hot_tile)
     {
-      g_object_unref (buffer->hot_tile);
+      gegl_tile_unref (buffer->hot_tile);
       buffer->hot_tile = NULL;
     }
 
@@ -705,6 +707,8 @@ gegl_buffer_get_tile (GeglTileSource *source,
     {
       GeglBuffer *buffer = GEGL_BUFFER (handler);
 
+      /* XXX: lock buffer? */
+
       if (x < buffer->min_x)
         buffer->min_x = x;
       if (y < buffer->min_y)
@@ -721,10 +725,19 @@ gegl_buffer_get_tile (GeglTileSource *source,
        * coordinates.
        */
       {
-        tile->tile_storage = buffer->tile_storage;
+#if ENABLE_MT
+        g_mutex_lock (tile->mutex);
+#endif
+        if (!tile->tile_storage)
+          {
+            tile->tile_storage = buffer->tile_storage;
+          }
         tile->x = x;
         tile->y = y;
         tile->z = z;
+#if ENABLE_MT
+        g_mutex_unlock (tile->mutex);
+#endif
       }
     }
 
@@ -857,16 +870,20 @@ gegl_buffer_class_init (GeglBufferClass *class)
 }
 
 #ifdef GEGL_BUFFER_DEBUG_ALLOCATIONS
+#endif
 #define MAX_N_FUNCTIONS 100
 static gchar *
 gegl_buffer_get_alloc_stack (void)
 {
+  char  *result         = NULL;
+#ifdef G_OS_WIN32
+  result = g_strdup ("backtrack not available on win32\n");
+#else
   void  *functions[MAX_N_FUNCTIONS];
   int    n_functions    = 0;
   char **function_names = NULL;
   int    i              = 0;
   int    result_size    = 0;
-  char  *result         = NULL;
   
   n_functions = backtrace (functions, MAX_N_FUNCTIONS);
   function_names = backtrace_symbols (functions, n_functions);
@@ -887,10 +904,16 @@ gegl_buffer_get_alloc_stack (void)
     }
 
   free (function_names);
+#endif
 
   return result;
 }
-#endif
+
+void gegl_bt (void);
+void gegl_bt (void)
+{
+  g_print ("%s\n", gegl_buffer_get_alloc_stack ());
+}
 
 static void
 gegl_buffer_init (GeglBuffer *buffer)
@@ -1075,7 +1098,8 @@ gegl_buffer_new_from_format (const void *babl_format,
                                   no++);
 #endif
 
-      filename = g_strdup_printf ("%i-%i", getpid(), no++);
+      filename = g_strdup_printf ("%i-%i", getpid(), no);
+      g_atomic_int_inc (&no);
       path = g_build_filename (gegl_config()->swap, filename, NULL);
       g_free (filename);
 
@@ -1121,6 +1145,9 @@ gegl_buffer_void (GeglBuffer *buffer)
   gint tile_height = buffer->tile_storage->tile_height;
   gint bufy        = 0;
 
+#if ENABLE_MT
+  g_mutex_lock (buffer->tile_storage->mutex);
+#endif
   {
     gint z;
     gint factor = 1;
@@ -1164,6 +1191,9 @@ done_with_row:
         factor *= 2;
       }
   }
+#if ENABLE_MT
+  g_mutex_unlock (buffer->tile_storage->mutex);
+#endif
 }
 
 
@@ -1180,14 +1210,14 @@ gboolean gegl_buffer_is_shared (GeglBuffer *buffer)
 
 gboolean gegl_buffer_try_lock (GeglBuffer *buffer)
 {
+#if 0
   GeglTileBackend *backend = gegl_buffer_backend (buffer);
-  gboolean ret;
-
   if (buffer->lock_count>0)
     {
       buffer->lock_count++;
       return TRUE;
     }
+  gboolean ret;
   if (gegl_buffer_is_shared(buffer))
     ret =gegl_tile_backend_file_try_lock (GEGL_TILE_BACKEND_FILE (backend));
   else
@@ -1195,27 +1225,26 @@ gboolean gegl_buffer_try_lock (GeglBuffer *buffer)
   if (ret)
     buffer->lock_count++;
   return TRUE;
+#else
+  //return g_mutex_trylock (buffer->tile_storage->mutex);
+  return FALSE;
+#endif
 }
 
-#if 0
+#if 1
 gboolean gegl_buffer_lock (GeglBuffer *buffer)
 {
-  while (gegl_buffer_try_lock (buffer)==FALSE)
-    {
-      g_print ("failed to aquire lock blocking ..");
-        g_usleep (100000);
-    }
+#if ENABLE_MT
+  if(0)g_mutex_lock (buffer->tile_storage->mutex);
+#endif
   return TRUE;
 }
 
 gboolean gegl_buffer_unlock (GeglBuffer *buffer)
 {
-  GeglTileBackend *backend = gegl_buffer_backend (buffer);
-  g_assert (buffer->lock_count>=0);
-  buffer->lock_count--;
-  g_assert (buffer->lock_count>=0);
-  if (buffer->lock_count==0 && gegl_buffer_is_shared (buffer))
-    return gegl_tile_backend_file_unlock (GEGL_TILE_BACKEND_FILE (backend));
+#if ENABLE_MT
+  if(0)g_mutex_unlock (buffer->tile_storage->mutex);
+#endif
   return TRUE;
 }
 #endif

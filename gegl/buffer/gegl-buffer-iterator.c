@@ -38,7 +38,7 @@
 #include "gegl-gpu-init.h"
 #endif
 
-typedef struct _GeglBufferTileIterator
+typedef struct GeglBufferTileIterator
 {
   GeglBuffer      *buffer;
   GeglRectangle    roi;      /* the rectangular region we're iterating over */
@@ -176,9 +176,12 @@ gulp:
   /* unref previously held tile */
   if (i->tile != NULL)
     {
-      gegl_tile_unlock (i->tile);
-
-      g_object_unref (i->tile);
+      if ((i->lock_mode & GEGL_TILE_LOCK_WRITE)
+       && i->subrect.width == tile_width)
+        {
+          gegl_tile_unlock (i->tile);
+        }
+      gegl_tile_unref (i->tile);
       i->tile = NULL;
 
       i->sub_data = NULL;
@@ -379,15 +382,16 @@ typedef struct BufInfo {
 
 static GArray *buf_pool = NULL;
 
-static gpointer
-iterator_buf_pool_get (gint width,
-                       gint height,
-                       const Babl *format)
+#if ENABLE_MT
+static GStaticMutex pool_mutex = G_STATIC_MUTEX_INIT;
+#endif
+
+static gpointer iterator_buf_pool_get (gint size)
 {
   gint cnt;
-
-  gint bpp  = babl_format_get_bytes_per_pixel (format);
-  gint size = width * height * bpp;
+#if ENABLE_MT
+  g_static_mutex_lock (&pool_mutex);
+#endif
 
   if (G_UNLIKELY (!buf_pool))
     buf_pool = g_array_new (TRUE, TRUE, sizeof (BufInfo));
@@ -398,33 +402,42 @@ iterator_buf_pool_get (gint width,
 
       if (info->size >= size && info->used == 0)
         {
-          info->used++;
+          info->used ++;
+#if ENABLE_MT
+          g_static_mutex_unlock (&pool_mutex);
+#endif
           return info->buf;
         }
     }
-    {
-      BufInfo info = {0, 1, NULL};
-
-      info.size = size;
-      info.buf  = gegl_malloc (size);
-
-      g_array_append_val (buf_pool, info);
-      return info.buf;
-    }
+  {
+    BufInfo info = {0, 1, NULL};
+    info.size = size;
+    info.buf = gegl_malloc (size);
+    g_array_append_val (buf_pool, info);
+#if ENABLE_MT
+    g_static_mutex_unlock (&pool_mutex);
+#endif
+    return info.buf;
+  }
 }
 
 static void
 iterator_buf_pool_release (gpointer buf)
 {
-  gint cnt;
-
-  for (cnt = 0; cnt < buf_pool->len; cnt++)
+  gint i;
+#if ENABLE_MT
+  g_static_mutex_lock (&pool_mutex);
+#endif
+  for (i=0; i<buf_pool->len; i++)
     {
-      BufInfo *info = &g_array_index (buf_pool, BufInfo, cnt);
+      BufInfo *info = &g_array_index (buf_pool, BufInfo, i);
 
       if (info->buf == buf)
         info->used--;
     }
+#if ENABLE_MT
+  g_static_mutex_unlock (&pool_mutex);
+#endif
 }
 
 #if HAVE_GPU
@@ -524,6 +537,8 @@ gegl_buffer_iterator_cleanup (void)
 #endif
 }
 
+
+
 #if DEBUG_DIRECT
 static glong direct_read = 0;
 static glong direct_write = 0;
@@ -541,11 +556,28 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
 
   if (i->is_done)
     g_error ("%s called on finished buffer iterator", G_STRFUNC);
-
-  /* first we need to finish off any pending write work */
-  if (i->iteration_no > 0)
+  if (i->iteration_no == 0)
     {
-      for (no = 0; no < i->iterable_count; no++)
+#if ENABLE_MT
+      for (no=0; no<i->iterable_count; no++)
+        {
+          gint j;
+          gboolean found = FALSE;
+          for (j=0; j<no; j++)
+            if (i->buffer[no]==i->buffer[j])
+              {
+                found = TRUE;
+                break;
+              }
+          if (!found)
+            gegl_buffer_lock (i->buffer[no]);
+        }
+#endif
+    }
+  else
+    {
+      /* complete pending write work */
+      for (no=0; no<i->iterable_count;no++)
         {
           gboolean direct_access
             = (i->flags[no] & GEGL_BUFFER_SCAN_COMPATIBLE
@@ -576,11 +608,11 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
 #if DEBUG_DIRECT
                       in_direct_write += i->roi[no].width * i->roi[no].height;
 #endif
-                      gegl_buffer_set (i->buffer[no],
-                                       &i->roi[no],
-                                       i->format[no],
-                                       i->data[no],
-                                       GEGL_AUTO_ROWSTRIDE);
+                      gegl_buffer_set_unlocked (i->buffer[no],
+                                                &(i->roi[no]),
+                                                i->format[no],
+                                                i->data[no],
+                                                GEGL_AUTO_ROWSTRIDE);
                     }
 
                   /* XXX: might be inefficient given the current
@@ -676,23 +708,22 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
                     {
                       gegl_tile_unlock (i->i[no].tile);
 
-                      g_object_unref (i->i[no].tile);
+                      gegl_tile_unref (i->i[no].tile);
                       i->i[no].tile = NULL;
 
                       i->i[no].sub_data = NULL;
                     }
 
-                  i->data[no] = iterator_buf_pool_get (i->roi[no].width,
-                                                       i->roi[no].height,
-                                                       i->format[no]);
+                  i->data[no] = iterator_buf_pool_get (
+                                  i->roi[no].width * i->roi[no].height *
+                              babl_format_get_bytes_per_pixel (i->format[no]));
 
                   if (i->flags[no] & GEGL_BUFFER_READ)
-                    gegl_buffer_get (i->buffer[no],
-                                     1.0,
-                                     &i->roi[no],
-                                     i->format[no],
-                                     i->data[no],
-                                     GEGL_AUTO_ROWSTRIDE);
+                    gegl_buffer_get_unlocked (i->buffer[no],
+                                              1.0, &(i->roi[no]),
+                                              i->format[no], 
+                                              i->data[no],
+                                              GEGL_AUTO_ROWSTRIDE);
 #if DEBUG_DIRECT
                   in_direct_read += i->roi[no].width * i->roi[no].height;
 #endif
@@ -717,7 +748,7 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
                     {
                       gegl_tile_unlock (i->i[no].tile);
 
-                      g_object_unref (i->i[no].tile);
+                      gegl_tile_unref (i->i[no].tile);
                       i->i[no].tile = NULL;
 
                       i->i[no].gpu_data = NULL;
@@ -750,9 +781,9 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
           if (i->flags[no] & GEGL_BUFFER_READ
               || i->flags[no] & GEGL_BUFFER_WRITE)
             {
-              i->data[no] = iterator_buf_pool_get (i->roi[no].width,
-                                                   i->roi[no].height,
-                                                   i->format[no]);
+              i->data[no] = iterator_buf_pool_get (i->roi[no].width *
+                                                   i->roi[no].height *
+                               babl_format_get_bytes_per_pixel (i->format[no]));
 
               if (i->flags[no] & GEGL_BUFFER_READ)
                 gegl_buffer_get (i->buffer[no],
@@ -794,7 +825,24 @@ gegl_buffer_iterator_next (GeglBufferIterator *iterator)
 
   if (result == FALSE)
     {
-      for (no = 0; no < i->iterable_count; no++)
+
+#if ENABLE_MT
+      for (no=0; no<i->iterable_count;no++)
+        {
+          gint j;
+          gboolean found = FALSE;
+          for (j=0; j<no; j++)
+            if (i->buffer[no]==i->buffer[j])
+              {
+                found = TRUE;
+                break;
+              }
+          if (!found)
+            gegl_buffer_unlock (i->buffer[no]);
+        }
+#endif
+
+      for (no=0; no<i->iterable_count;no++)
         {
           g_object_unref (i->buffer[no]);
           i->buffer[no] = NULL;

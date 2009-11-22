@@ -19,7 +19,7 @@
 #include <glib-object.h>
 #include <string.h>
 #include <glib/gprintf.h>
-
+#include "config.h"
 #include "gegl.h"
 #include "gegl-types-internal.h"
 #include "gegl-config.h"
@@ -38,8 +38,10 @@ enum
   PROP_BABL_TOLERANCE,
   PROP_TILE_WIDTH,
   PROP_TILE_HEIGHT,
-
   PROP_GPU_ENABLED
+#if ENABLE_MT
+  ,PROP_THREADS
+#endif
 };
 
 static void
@@ -83,6 +85,13 @@ get_property (GObject    *gobject,
 #if HAVE_GPU
       case PROP_GPU_ENABLED:
         g_value_set_boolean (value, config->gpu_enabled);
+        break;
+#endif
+
+#if ENABLE_MT
+      case PROP_THREADS:
+        g_value_set_int (value, config->threads);
+        break;
 #endif
 
       default:
@@ -136,6 +145,11 @@ set_property (GObject      *gobject,
 #if HAVE_GPU
       case PROP_GPU_ENABLED:
         config->gpu_enabled = g_value_get_boolean (value);
+        break;
+#endif
+#if ENABLE_MT
+      case PROP_THREADS:
+        config->threads = g_value_get_int (value);
         break;
 #endif
       default:
@@ -207,6 +221,12 @@ gegl_config_class_init (GeglConfigClass *klass)
   g_object_class_install_property (gobject_class, PROP_GPU_ENABLED,
                                    g_param_spec_string ("gpu-enabled", "GPU-support enabled", "whether or not GPU support is enabled", FALSE,
                                                      G_PARAM_READWRITE));
+#if ENABLE_MT
+  g_object_class_install_property (gobject_class, PROP_TILE_HEIGHT,
+                                   g_param_spec_int ("threads", "Number of concurrent evaluation threads", "default tile height for created buffers.",
+                                                     0, 16, 2,
+                                                     G_PARAM_READWRITE));
+#endif
 }
 
 static void
@@ -220,5 +240,8 @@ gegl_config_init (GeglConfig *self)
   self->tile_height = 128;
 #if HAVE_GPU
   self->gpu_enabled = FALSE;
+#endif
+#if ENABLE_MT
+  self->threads = 2;
 #endif
 }

@@ -17,9 +17,6 @@
  *           2009      daerd
  */
 
-#ifdef HAVE_GPU
-#include <GL/glew.h>
-#endif
 
 #include "config.h"
 #include <glib/gi18n-lib.h>
@@ -59,12 +56,15 @@ gegl_chant_double (brightness, _("Brightness"), -3.0, 3.0, 0.0,
  * structure for our operation, as well as the needed code to register
  * our new gobject with GEGL.
  */
+#if HAVE_GPU
+#include <GL/glew.h>
+#endif
 #include "gegl-chant.h"
 
 /* XXX: the amount of boiler plate to be able to write a sahder
  * for the op needs to be reduced.
  */
-#if 0
+#if HAVE_GPU
 
 #include "gegl-gpu-types.h"
 #include "gegl-gpu-init.h"
@@ -160,7 +160,7 @@ process (GeglOperation       *op,
 /* XXX: could this perhaps be done more generically in the baseclass,
  * allowing the implementation to be much more minimal?
  */
-#if 0
+#if HAVE_GPU
 
 static gboolean
 process_gpu (GeglOperation       *op,
@@ -305,7 +305,7 @@ gegl_chant_class_init (GeglChantClass *klass)
   gegl_operation_class_add_processor (operation_class,
                                       G_CALLBACK (process_simd), "simd");
 #endif
-#if 0
+#if HAVE_GPU
   gegl_operation_class_add_processor (operation_class,
                                       G_CALLBACK (process_gpu),
                                       "gpu:reference");

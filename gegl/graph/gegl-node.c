@@ -33,6 +33,7 @@
 #include "gegl-pad.h"
 #include "gegl-utils.h"
 #include "gegl-visitable.h"
+#include "gegl-config.h"
 
 #include "operation/gegl-operation.h"
 #include "operation/gegl-operations.h"
@@ -69,7 +70,7 @@ struct _GeglNodePrivate
   GeglNode       *parent;
   gchar          *name;
   GeglProcessor  *processor;
-  GeglEvalMgr    *eval_mgr;
+  GeglEvalMgr    *eval_mgr[16];
   GHashTable     *contexts;
 };
 
@@ -198,6 +199,9 @@ gegl_node_init (GeglNode *self)
   self->operation      = NULL;
   self->is_graph       = FALSE;
   self->cache          = NULL;
+#if ENABLE_MT
+  self->mutex          = g_mutex_new ();
+#endif
 
 }
 
@@ -230,11 +234,15 @@ gegl_node_dispose (GObject *gobject)
       self->cache = NULL;
     }
 
-  if (self->priv->eval_mgr)
-    {
-      g_object_unref (self->priv->eval_mgr);
-      self->priv->eval_mgr = NULL;
-    }
+  {
+    gint i;
+    for (i=0; i<4; i++)
+      if (self->priv->eval_mgr[i])
+        {
+          g_object_unref (self->priv->eval_mgr[i]);
+          self->priv->eval_mgr[i] = NULL;
+        }
+  }
 
   if (self->priv->processor)
     {
@@ -273,6 +281,9 @@ gegl_node_finalize (GObject *gobject)
       g_free (self->priv->name);
     }
   g_hash_table_destroy (self->priv->contexts);
+#if ENABLE_MT
+  g_mutex_free (self->mutex);
+#endif
 
   G_OBJECT_CLASS (gegl_node_parent_class)->finalize (gobject);
 }
@@ -811,10 +822,11 @@ gegl_node_link_many (GeglNode *source,
 }
 
 static void gegl_node_ensure_eval_mgr (GeglNode    *self,
-                                       const gchar *pad)
+                                       const gchar *pad,
+                                       gint         no)
 {
-  if (!self->priv->eval_mgr)
-    self->priv->eval_mgr = gegl_eval_mgr_new (self, pad);
+  if (!self->priv->eval_mgr[no])
+    self->priv->eval_mgr[no] = gegl_eval_mgr_new (self, pad);
 }
 
 /* Will set the eval_mgr's roi to the supplied roi if defined, otherwise
@@ -824,23 +836,77 @@ static void gegl_node_ensure_eval_mgr (GeglNode    *self,
 static GeglBuffer *
 gegl_node_apply_roi (GeglNode            *self,
                      const gchar         *output_pad_name,
-                     const GeglRectangle *roi)
+                     const GeglRectangle *roi,
+                     gint                 tid)
 {
+  /* This is a potential spot to multiplex paralell processing,
+   * doing so, might cause a lot of tile overlap between
+   * processes if were not careful (wouldn't neccesarily be totally
+   * bad if that happens though.
+   */
   GeglBuffer *buffer;
 
-  gegl_node_ensure_eval_mgr (self, output_pad_name);
+  //g_print ("%i %i %i %i %i\n", tid, roi->x, roi->y, roi->width, roi->height);
 
   if (roi)
     {
-      self->priv->eval_mgr->roi = *roi;
+      self->priv->eval_mgr[tid]->roi = *roi;
     }
   else
     {
-      self->priv->eval_mgr->roi = gegl_node_get_bounding_box (self);
+      self->priv->eval_mgr[tid]->roi = gegl_node_get_bounding_box (self);
     }
-  buffer = gegl_eval_mgr_apply (self->priv->eval_mgr);
+  buffer = gegl_eval_mgr_apply (self->priv->eval_mgr[tid]);
   return buffer;
 }
+
+
+#if ENABLE_MT
+typedef struct ThreadData
+{
+  GeglNode      *node;
+  gint           tid;
+  GeglRectangle  roi;
+  const gchar   *pad;
+
+  const Babl          *format;
+  gpointer             destination_buf;
+  gint                 rowstride;
+  GeglBlitFlags        flags;
+} ThreadData;
+
+static GThreadPool *pool = NULL;
+static GMutex *mutex = NULL;
+static GCond  *cond = NULL;
+static gint    remaining_tasks = 0;
+
+static void spawnrender (gpointer data,
+                         gpointer foo)
+{
+  ThreadData *td = data;
+  GeglBuffer * buffer;
+  buffer = gegl_node_apply_roi (td->node, td->pad, &td->roi, td->tid);
+
+  if ((buffer ) && td->destination_buf)
+    {
+      gegl_buffer_get (buffer, 1.0, &td->roi, td->format, td->destination_buf, td->rowstride);
+    }
+
+  /* and unrefing to ultimately clean it off from the graph */
+  if (buffer)
+    g_object_unref (buffer);
+
+  g_mutex_lock (mutex);
+  remaining_tasks --;
+  if (remaining_tasks == 0)
+    {
+      /* we were the last task, we're not busy rendering any more */
+      g_cond_signal (cond);
+    }
+  g_mutex_unlock (mutex);
+}
+#endif
+
 
 void
 gegl_node_blit (GeglNode            *self,
@@ -851,24 +917,115 @@ gegl_node_blit (GeglNode            *self,
                 gint                 rowstride,
                 GeglBlitFlags        flags)
 {
+#if ENABLE_MT
+  gint threads;
+#endif
   g_return_if_fail (GEGL_IS_NODE (self));
   g_return_if_fail (roi != NULL);
+
+#if ENABLE_MT
+  threads = gegl_config ()->threads;
+  
+  if (pool == NULL)
+    {
+      pool = g_thread_pool_new (spawnrender, NULL, threads, TRUE, NULL);
+      mutex = g_mutex_new ();
+      cond = g_cond_new ();
+    }
 
 #if 0
   if (flags == GEGL_BLIT_DEFAULT)
     flags = GEGL_BLIT_CACHE;
 #endif
 
-  /* temporarily made blit use caching, but render
-   * blocking, this to be able to have less coupling
-   * with the processor
-   */
-#if 1
+  flags = GEGL_BLIT_DEFAULT; /* force all rendering through this path,
+                              * to have less code to worry about making
+                              * multi thread safe
+                              */
   if (flags == GEGL_BLIT_DEFAULT)
+    {
+      ThreadData data[16];
+      gint i;
+
+      /* Subdivide along the largest of width/height, this should be further
+       * extended similar to the subdivizion done in GeglProcessor, to get as
+       * square as possible subregions.
+       */
+      gboolean horizontal = roi->width > roi->height;
+
+      gint rowskip = 0;
+
+      if (!format)
+        format = babl_format ("RGBA float"); /* XXX: This probably duplicates
+                                                another hardcoded format, they
+                                                should be turned into a
+                                                constant. */
+      if (horizontal)
+        rowskip = (roi->width/threads) * babl_format_get_bytes_per_pixel (format);
+
+      if (rowstride == GEGL_AUTO_ROWSTRIDE)
+        rowstride = roi->width * babl_format_get_bytes_per_pixel (format);
+
+      data[0].node = self;
+      data[0].pad = "output";
+      data[0].format = format;
+      data[0].destination_buf = destination_buf;
+      data[0].rowstride = rowstride;
+      data[0].flags = flags;
+
+      for (i=0;i<threads;i++)
+        {
+          data[i] = data[0];
+          data[i].roi = *roi;
+          gegl_node_ensure_eval_mgr (self, "output", i);
+          if (horizontal)
+            {
+              data[i].roi.width = roi->width / threads;
+              data[i].roi.x = roi->x + roi->width/threads * i;
+            }
+          else
+            {
+              data[i].roi.height = roi->height / threads;
+              data[i].roi.y = roi->y + roi->height/threads * i;
+            }
+
+          data[i].tid = i;
+          if (horizontal)
+            data[i].destination_buf = ((gchar*)destination_buf + rowskip * i);
+          else
+            data[i].destination_buf = ((gchar*)destination_buf + rowstride * (roi->height/threads) * i);
+        }
+      if (horizontal)
+        data[threads-1].roi.width = roi->width - (roi->width / threads)*(threads-1);
+      else
+        data[threads-1].roi.height = roi->height - (roi->height / threads)*(threads-1);
+
+      remaining_tasks+=threads;
+
+      if (threads==1)
+        {
+          for (i=0; i<threads; i++)
+              spawnrender (&data[i], NULL);
+        }
+      else
+        {
+          for (i=0; i<threads-1; i++)
+            g_thread_pool_push (pool, &data[i], NULL);
+          spawnrender (&data[threads-1], NULL);
+
+          g_mutex_lock (mutex);
+          while (remaining_tasks!=0)
+            g_cond_wait (cond, mutex);
+          g_mutex_unlock (mutex);
+        }
+    }
+#else
+    if (flags == GEGL_BLIT_DEFAULT)
     {
       GeglBuffer *buffer;
 
-      buffer = gegl_node_apply_roi (self, "output", roi);
+      gegl_node_ensure_eval_mgr (self, "output", 0);
+      buffer = gegl_node_apply_roi (self, "output", roi, 0);
       if (buffer && destination_buf)
         {
           if (destination_buf)
@@ -886,9 +1043,8 @@ gegl_node_blit (GeglNode            *self,
       if (buffer)
         g_object_unref (buffer);
     }
-  else 
 #endif
-    
+  else  /* these code paths currently not used */
     if ((flags & GEGL_BLIT_CACHE) ||
            (flags & GEGL_BLIT_DIRTY))
     {
@@ -907,7 +1063,6 @@ gegl_node_blit (GeglNode            *self,
         }
     }
 }
-
 
 GSList *
 gegl_node_get_depends_on (GeglNode *self)
@@ -1489,27 +1644,45 @@ gegl_node_get_producer (GeglNode *node,
                         gchar    *pad_name,
                         gchar   **output_pad_name)
 {
-  GeglPad *pad;
+  GeglNode *ret;
+  gpointer pad;
 
-  g_return_val_if_fail (GEGL_IS_NODE (node), NULL);
-  g_return_val_if_fail (pad_name != NULL, NULL);
+  /* XXX: there should be public API to test if a node is
+   * really a graph. So that the user of the API knows
+   * the internals can be reached through the proxy nops
+   */
+  if (node->is_graph)
+    node = gegl_node_get_input_proxy (node, "input");
 
   pad = gegl_node_get_pad (node, pad_name);
 
-  if (pad &&
-      gegl_pad_is_input (pad) &&
-      gegl_pad_get_num_connections (pad) == 1)
-    {
-      GeglConnection *connection = g_slist_nth_data (pad->connections, 0);
+  if (!pad)
+    return NULL;
+  pad = gegl_pad_get_connected_to (pad);
+  if (!pad)
+    return NULL;
+  ret = gegl_pad_get_node (pad);
 
-      if (output_pad_name)
-        {
-          GeglPad *pad = gegl_connection_get_source_pad (connection);
-          *output_pad_name = g_strdup (gegl_pad_get_name (pad));
-        }
-      return gegl_connection_get_source_node (connection);
-    }
-  return NULL;
+    if(ret)
+      {
+        const gchar *name;
+        name = gegl_node_get_name (ret);
+        if (name && !strcmp (name, "proxynop-output"))
+          {
+            ret = g_object_get_data (G_OBJECT (ret), "graph");
+            /* XXX: needs testing whether this returns the correct value
+             * for non "output" output pads.
+             */
+            if (output_pad_name)
+              *output_pad_name = g_strdup (gegl_pad_get_name (pad));
+          }
+        else
+          {
+            if (output_pad_name)
+              *output_pad_name = g_strdup (gegl_pad_get_name (pad));
+          }
+      }
+  return ret;
 }
 
 GeglRectangle
@@ -1599,7 +1772,7 @@ gegl_node_process (GeglNode *self)
 
   input   = gegl_node_get_producer (self, "input", NULL);
   defined = gegl_node_get_bounding_box (input);
-  buffer  = gegl_node_apply_roi (input, "output", &defined);
+  buffer  = gegl_node_apply_roi (input, "output", &defined, 3);
 
   g_assert (GEGL_IS_BUFFER (buffer));
   context = gegl_node_add_context (self, &defined);
@@ -1626,12 +1799,17 @@ gegl_node_get_context (GeglNode *self,
                        gpointer  context_id)
 {
   GeglOperationContext *context = NULL;
+#if ENABLE_MT
+  g_mutex_lock (self->mutex);
+#endif
 
   g_return_val_if_fail (GEGL_IS_NODE (self), NULL);
   g_return_val_if_fail (context_id != NULL, NULL);
 
   context = g_hash_table_lookup (self->priv->contexts, context_id);
-
+#if ENABLE_MT
+  g_mutex_unlock (self->mutex);
+#endif
   return context;
 }
 
@@ -1645,14 +1823,23 @@ gegl_node_remove_context (GeglNode *self,
   g_return_if_fail (context_id != NULL);
 
   context = gegl_node_get_context (self, context_id);
+#if ENABLE_MT
+  g_mutex_lock (self->mutex);
+#endif
   if (!context)
     {
       g_warning ("didn't find context %p for %s",
                  context_id, gegl_node_get_debug_name (self));
+#if ENABLE_MT
+      g_mutex_unlock (self->mutex);
+#endif
       return;
     }
   g_hash_table_remove (self->priv->contexts, context_id);
   gegl_operation_context_destroy (context);
+#if ENABLE_MT
+  g_mutex_unlock (self->mutex);
+#endif
 }
 
 /* Creates, sets up and returns a new context for the node, or just returns it
@@ -1667,18 +1854,27 @@ gegl_node_add_context (GeglNode *self,
   g_return_val_if_fail (GEGL_IS_NODE (self), NULL);
   g_return_val_if_fail (context_id != NULL, NULL);
 
+#if ENABLE_MT
+  g_mutex_lock (self->mutex);
+#endif
   context = g_hash_table_lookup (self->priv->contexts, context_id);
 
   if (context)
     {
       /* silently ignore, since multiple traversals of prepare are done
        * to saturate the graph */
+#if ENABLE_MT
+      g_mutex_unlock (self->mutex);
+#endif
       return context;
     }
 
   context             = gegl_operation_context_new ();
   context->operation  = self->operation;
   g_hash_table_insert (self->priv->contexts, context_id, context);
+#if ENABLE_MT
+  g_mutex_unlock (self->mutex);
+#endif
   return context;
 }
 
@@ -1825,6 +2021,9 @@ gegl_node_get_cache (GeglNode *node)
       GeglPad    *pad;
       const Babl *format;
 
+      /* XXX: it should be possible to have cache for other pads than
+       * only "output" pads
+       */
       pad = gegl_node_get_pad (node, "output");
       g_assert (pad);
       format = gegl_pad_get_format (pad);
@@ -1872,7 +2071,7 @@ gegl_node_remove_children (GeglNode *self)
     {
       GeglNode *child = gegl_node_get_nth_child (self, 0);
 
-      if (child)
+      if (child && GEGL_IS_NODE (child))
         gegl_node_remove_child (self, child);
       else
         break;
@@ -1901,11 +2100,14 @@ gegl_node_remove_child (GeglNode *self,
                         GeglNode *child)
 {
   g_return_val_if_fail (GEGL_IS_NODE (self), NULL);
+  if (!GEGL_IS_NODE (child))
+    {
+      g_print ("%p %s\n", child, G_OBJECT_TYPE_NAME (child));
+    }
   g_return_val_if_fail (GEGL_IS_NODE (child), NULL);
 
   g_assert (child->priv->parent == self ||
             child->priv->parent == NULL);
-  g_return_val_if_fail (GEGL_IS_NODE (child), NULL);
 
   self->priv->children = g_slist_remove (self->priv->children, child);
 
@@ -1916,7 +2118,6 @@ gegl_node_remove_child (GeglNode *self,
       child->priv->parent = NULL;
       g_object_unref (child);
     }
-
 
   if (self->priv->children == NULL)
     self->is_graph = FALSE;
@@ -2052,14 +2253,6 @@ gegl_node_get_pad_proxy (GeglNode    *graph,
         gegl_pad_set_node (new_pad, nop);
         gegl_pad_set_name (new_pad, name);
         gegl_node_add_pad (node, new_pad);
-
-        /* hack, decoreating the pad to make it recognized in later
-         * processing
-         */
-        if (!strcmp (name, "aux"))
-          {
-            g_object_set_data (G_OBJECT (nop), "is-aux", "foo");
-          }
       }
 
       g_object_set_data (G_OBJECT (nop), "graph", graph);
