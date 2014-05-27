@@ -178,6 +178,58 @@ parse_float_argument_list (GeglColor *color,
   return FALSE;
 }
 
+
+static gboolean
+parse_hsl_argument_list (GeglColor *color,
+                         GScanner  *scanner,
+                         gint       num_arguments)
+{
+  GTokenType        token_type;
+  GTokenValue       token_value;
+  gint              i;
+
+  /* Make sure there is a leading '(' */
+  if (g_scanner_get_next_token (scanner) != G_TOKEN_LEFT_PAREN)
+    {
+      return FALSE;
+    }
+
+  /* Hue */
+  switch (g_scanner_get_next_token (scanner))
+    {
+      case G_TOKEN_FLOAT:
+        token_value = g_scanner_cur_value (scanner);
+        color->priv->rgba_color[i] = token_value.v_float;
+        break;
+      case G_TOKEN_INT:
+        token_value = g_scanner_cur_value (scanner);
+        color->priv->rgba_color[i] = token_value.v_int64;
+        break;
+
+      default:
+        return FALSE;
+    }
+
+  token_type = g_scanner_get_next_token (scanner);
+  if (token_type != G_TOKEN_COMMA)
+    {
+      return FALSE;
+    }
+
+  /* Saturation */
+  
+
+  /* Make sure there is a traling ')' and that that is the last token. */
+  if (g_scanner_get_next_token (scanner) == G_TOKEN_RIGHT_PAREN &&
+      g_scanner_get_next_token (scanner) == G_TOKEN_EOF)
+    {
+      return TRUE;
+    }
+
+  return FALSE;
+}
+
+
 static gboolean
 parse_color_name (GeglColor   *color,
                   const gchar *color_string)
@@ -340,6 +392,16 @@ gegl_color_set_from_string (GeglColor   *self,
            g_ascii_strcasecmp (token_value.v_identifier, "rgba") == 0)
     {
       color_parsing_successfull = parse_float_argument_list (self, scanner, 4);
+    }
+  else if (token_type == G_TOKEN_IDENTIFIER &&
+           g_ascii_strcasecmp (token_value.v_identifier, "hsl") == 0)
+    {
+      color_parsing_successfull = parse_float_argument_list (self, scanner, 3);
+    }
+  else if (token_type == G_TOKEN_IDENTIFIER &&
+           g_ascii_strcasecmp (token_value.v_identifier, "hsla") == 0)
+    {
+      color_parsing_successfull = parse_float_argument_list (self, scanner, 3);
     }
   else if (token_type == '#') /* FIXME: Verify that this is a safe way to check for '#' */
     {
