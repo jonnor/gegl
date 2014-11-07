@@ -65,6 +65,7 @@ property_format (format, _("Babl Format"), NULL)
 
 #define GEGL_OP_POINT_RENDER
 #define GEGL_OP_C_FILE "checkerboard.c"
+#include "checkerboard.c.h"
 
 #include "gegl-op.h"
 #include <gegl-buffer-cl-iterator.h>
@@ -410,6 +411,7 @@ gegl_op_class_init (GeglOpClass *klass)
     "title",              _("Checkerboard"),
     "position-dependent", "true",
     "description",        _("Create a checkerboard pattern"),
+    "source", checkerboard_c_source,
     NULL);
 }
 
