@@ -74,10 +74,7 @@ endif
 check-TESTS: $(TESTS)
 	$(PYTHON) $(srcdir)/run-compositions.py \
 	  --build-dir=$(top_builddir) --src-dir=$(top_srcdir) --xml-dir=$(srcdir) \
-	  $(TESTS)
-	$(PYTHON) $(srcdir)/run-compositions.py --without-opencl \
-	  --build-dir=$(top_builddir) --src-dir=$(top_srcdir) --xml-dir=$(srcdir) \
-	  $(NO_OPENCL_TESTS)
+	  png-load-path.xml png-load-uri.xml png-load-http-uri.xml
 
 clean-local:
 	rm -f output/*
