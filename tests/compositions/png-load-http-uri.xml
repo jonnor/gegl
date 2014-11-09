@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<gegl>
+      <node operation='gegl:png-load'>
+          <params>
+            <param name='uri'>http://localhost:3569/process?graph=default/main&amp;node=p&amp;timestamp=1415489317352</param>
+          </params>
+      </node>
+</gegl>

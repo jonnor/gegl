@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<gegl>
+      <node operation='gegl:png-load'>
+          <params>
+            <param name='uri'>file:///home/jon/contrib/code/imgflo-server/runtime/dependencies/gegl/tests/compositions/data/car-stack.png</param>
+          </params>
+      </node>
+</gegl>
